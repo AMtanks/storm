@@ -40,7 +40,7 @@ def truncate_filename(filename, max_length=125):
 
 def load_api_key(toml_file_path):
     try:
-        with open(toml_file_path, "r") as file:
+        with open(toml_file_path, "r", encoding='utf-8') as file:
             data = toml.load(file)
     except FileNotFoundError:
         print(f"File not found: {toml_file_path}", file=sys.stderr)
@@ -611,12 +611,12 @@ class FileIOHelper:
 
     @staticmethod
     def write_str(s, path):
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             f.write(s)
 
     @staticmethod
     def load_str(path):
-        with open(path, "r") as f:
+        with open(path, "r", encoding="utf-8") as f:
             return "\n".join(f.readlines())
 
     @staticmethod
@@ -641,14 +641,33 @@ class WebPageHelper:
         min_char_count: int = 150,
         snippet_chunk_size: int = 1000,
         max_thread_num: int = 10,
+        proxy: str = None,
     ):
         """
         Args:
             min_char_count: Minimum character count for the article to be considered valid.
             snippet_chunk_size: Maximum character count for each snippet.
             max_thread_num: Maximum number of threads to use for concurrent requests (e.g., downloading webpages).
+            proxy: Proxy URL to use for requests, e.g., "http://127.0.0.1:7890" or "socks5://127.0.0.1:1080"
         """
-        self.httpx_client = httpx.Client(verify=False)
+        # 使用代理设置
+        if proxy:
+            self.httpx_client = httpx.Client(verify=False, proxies=proxy)
+        else:
+            # 尝试从环境变量获取代理
+            http_proxy = os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy")
+            https_proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")
+            
+            if http_proxy or https_proxy:
+                proxies = {}
+                if http_proxy:
+                    proxies["http://"] = http_proxy
+                if https_proxy:
+                    proxies["https://"] = https_proxy
+                self.httpx_client = httpx.Client(verify=False, proxies=proxies)
+            else:
+                self.httpx_client = httpx.Client(verify=False)
+                
         self.min_char_count = min_char_count
         self.max_thread_num = max_thread_num
         self.text_splitter = RecursiveCharacterTextSplitter(
@@ -673,12 +692,15 @@ class WebPageHelper:
 
     def download_webpage(self, url: str):
         try:
-            res = self.httpx_client.get(url, timeout=4)
+            res = self.httpx_client.get(url, timeout=10)  # 增加超时时间
             if res.status_code >= 400:
                 res.raise_for_status()
             return res.content
         except httpx.HTTPError as exc:
             print(f"Error while requesting {exc.request.url!r} - {exc!r}")
+            return None
+        except Exception as e:
+            print(f"Unexpected error while requesting {url}: {str(e)}")
             return None
 
     def urls_to_articles(self, urls: List[str]) -> Dict:

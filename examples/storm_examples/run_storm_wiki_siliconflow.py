@@ -1,7 +1,7 @@
 """
-STORM Wiki pipeline powered by llama3-70b-8192 hosted by Groq server and You.com search engine.
+STORM Wiki pipeline powered by Qwen2.5-72B-Instruct hosted by SiliconFlow API and You.com search engine.
 You need to set up the following environment variables to run this script:
-    - GROQ_API_KEY: You can get your Groq API Key at https://console.groq.com/keys
+    - SILICONFLOW_API_KEY: Your SiliconFlow API Key (e.g., sk-lpmnkrmjecjryeruvsdrovodolqnjhsiohbjwgbinqllkomy)
     - YDC_API_KEY: You.com API key; BING_SEARCH_API_KEY: Bing Search API key, SERPER_API_KEY: Serper API key, BRAVE_API_KEY: Brave API key, or TAVILY_API_KEY: Tavily API key
 You also need to have a VLLM server running with the Mistral-7B-Instruct-v0.2 model. Specify `--url` and `--port` accordingly.
 
@@ -20,6 +20,7 @@ args.output_dir/
 import os
 import re
 from argparse import ArgumentParser
+import logging
 
 from knowledge_storm import (
     STORMWikiRunnerArguments,
@@ -28,7 +29,7 @@ from knowledge_storm import (
 )
 
 # Now import lm directly
-from knowledge_storm.lm import LitellmModel as GroqModel
+from knowledge_storm.lm import SiliconFlowModel
 from knowledge_storm.rm import (
     YouRM,
     BingSearch,
@@ -40,6 +41,8 @@ from knowledge_storm.rm import (
 )
 from knowledge_storm.utils import load_api_key
 
+# 添加logger定义
+logger = logging.getLogger(__name__)
 
 def sanitize_topic(topic):
     """
@@ -63,30 +66,32 @@ def main(args):
     load_api_key(toml_file_path="secrets.toml")
     lm_configs = STORMWikiLMConfigs()
 
-    # Ensure GROQ_API_KEY is set
-    if not os.getenv("GROQ_API_KEY"):
-        raise ValueError(
-            "GROQ_API_KEY environment variable is not set. Please set it in your secrets.toml file."
-        )
+    # Use default API key if environment variable is not set
+    api_key = os.getenv("SILICONFLOW_API_KEY") or "sk-lpmnkrmjecjryeruvsdrovodolqnjhsiohbjwgbinqllkomy"
+    
+    # 设置Tavily API密钥
+    os.environ["TAVILY_API_KEY"] = "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"
 
-    groq_kwargs = {
-        "api_key": os.getenv("GROQ_API_KEY"),
-        "api_base": "https://api.groq.com/openai/v1",
+    siliconflow_kwargs = {
+        "api_key": api_key,
+        "api_base": "https://api.siliconflow.cn/v1",
         "temperature": args.temperature,
         "top_p": args.top_p,
     }
 
-    # Groq currently offers the "llama3-70b-8192" model with generous free API credits and the llama3.1 family of models as a preview for paying customers
-    conv_simulator_lm = GroqModel(
-        model="llama3-70b-8192", max_tokens=500, **groq_kwargs
+    # SiliconFlow offers models like "Qwen/Qwen2.5-72B-Instruct"
+    model_name = "Qwen/Qwen2.5-72B-Instruct"
+    
+    conv_simulator_lm = SiliconFlowModel(
+        model=model_name, max_tokens=500, **siliconflow_kwargs
     )
-    question_asker_lm = GroqModel(
-        model="llama3-70b-8192", max_tokens=500, **groq_kwargs
+    question_asker_lm = SiliconFlowModel(
+        model=model_name, max_tokens=500, **siliconflow_kwargs
     )
-    outline_gen_lm = GroqModel(model="llama3-70b-8192", max_tokens=400, **groq_kwargs)
-    article_gen_lm = GroqModel(model="llama3-70b-8192", max_tokens=700, **groq_kwargs)
-    article_polish_lm = GroqModel(
-        model="llama3-70b-8192", max_tokens=4000, **groq_kwargs
+    outline_gen_lm = SiliconFlowModel(model=model_name, max_tokens=400, **siliconflow_kwargs)
+    article_gen_lm = SiliconFlowModel(model=model_name, max_tokens=700, **siliconflow_kwargs)
+    article_polish_lm = SiliconFlowModel(
+        model=model_name, max_tokens=4000, **siliconflow_kwargs
     )
 
     lm_configs.set_conv_simulator_lm(conv_simulator_lm)
@@ -128,10 +133,15 @@ def main(args):
                 query_params={"autocorrect": True, "num": 10, "page": 1},
             )
         case "tavily":
+            # 设置代理（如果有）
+            proxy = os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy")
+            
             rm = TavilySearchRM(
                 tavily_search_api_key=os.getenv("TAVILY_API_KEY"),
                 k=engine_args.search_top_k,
                 include_raw_content=True,
+                proxy=proxy,
+                exclude_domains=["wikipedia.org", "en.wikipedia.org"],
             )
         case "searxng":
             rm = SearXNG(
@@ -169,7 +179,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="./results/groq",
+        default="./results/siliconflow",
         help="Directory to store the outputs.",
     )
     parser.add_argument(

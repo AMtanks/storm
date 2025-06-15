@@ -867,6 +867,8 @@ class TavilySearchRM(dspy.Retrieve):
         snippet_chunk_size: int = 1000,
         webpage_helper_max_threads=10,
         include_raw_content=False,
+        proxy: str = None,
+        exclude_domains: List[str] = None,
     ):
         """
         Params:
@@ -875,6 +877,8 @@ class TavilySearchRM(dspy.Retrieve):
             snippet_chunk_size: Maximum character count for each snippet.
             webpage_helper_max_threads: Maximum number of threads to use for webpage helper.
             include_raw_content bool: Boolean that is used to determine if the full text should be returned.
+            proxy: Proxy URL to use for requests, e.g., "http://127.0.0.1:7890"
+            exclude_domains: List of domains to exclude from search results, e.g., ["wikipedia.org"]
         """
         super().__init__(k=k)
         try:
@@ -896,10 +900,20 @@ class TavilySearchRM(dspy.Retrieve):
             min_char_count=min_char_count,
             snippet_chunk_size=snippet_chunk_size,
             max_thread_num=webpage_helper_max_threads,
+            proxy=proxy,
         )
 
         self.usage = 0
+        self.proxy = proxy
+        
+        # 默认排除维基百科域名，因为在中国大陆无法访问
+        self.exclude_domains = exclude_domains or ["wikipedia.org", "en.wikipedia.org"]
 
+        # 设置环境变量，确保Tavily客户端使用代理
+        if proxy:
+            os.environ["HTTP_PROXY"] = proxy
+            os.environ["HTTPS_PROXY"] = proxy
+        
         # Creates client instance that will use search. Full search params are here:
         # https://docs.tavily.com/docs/python-sdk/tavily-search/examples
         self.tavily_client = TavilyClient(api_key=self.tavily_search_api_key)
@@ -938,45 +952,60 @@ class TavilySearchRM(dspy.Retrieve):
 
         for query in queries:
             args = {
-                "max_results": self.k,
+                "max_results": self.k * 2,  # 获取更多结果，以便过滤后仍有足够的结果
                 "include_raw_contents": self.include_raw_content,
+                "exclude_domains": self.exclude_domains,  # 排除指定域名
             }
             #  list of dicts that will be parsed to return
-            responseData = self.tavily_client.search(query)
-            results = responseData.get("results")
-            for d in results:
-                # assert d is dict
-                if not isinstance(d, dict):
-                    print(f"Invalid result: {d}\n")
-                    continue
+            try:
+                responseData = self.tavily_client.search(query, **args)
+                results = responseData.get("results", [])
+                
+                # 过滤掉维基百科URL和排除的URL
+                filtered_results = []
+                for d in results:
+                    url = d.get("url", "")
+                    if not any(domain in url for domain in self.exclude_domains) and url not in exclude_urls:
+                        filtered_results.append(d)
+                
+                # 只保留前k个结果
+                filtered_results = filtered_results[:self.k]
+                
+                for d in filtered_results:
+                    # assert d is dict
+                    if not isinstance(d, dict):
+                        print(f"Invalid result: {d}\n")
+                        continue
 
-                try:
-                    # ensure keys are present
-                    url = d.get("url", None)
-                    title = d.get("title", None)
-                    description = d.get("content", None)
-                    snippets = []
-                    if d.get("raw_body_content"):
-                        snippets.append(d.get("raw_body_content"))
-                    else:
-                        snippets.append(d.get("content"))
+                    try:
+                        # ensure keys are present
+                        url = d.get("url", None)
+                        title = d.get("title", None)
+                        description = d.get("content", None)
+                        snippets = []
+                        if d.get("raw_body_content"):
+                            snippets.append(d.get("raw_body_content"))
+                        else:
+                            snippets.append(d.get("content"))
 
-                    # raise exception of missing key(s)
-                    if not all([url, title, description, snippets]):
-                        raise ValueError(f"Missing key(s) in result: {d}")
-                    if self.is_valid_source(url) and url not in exclude_urls:
-                        result = {
-                            "url": url,
-                            "title": title,
-                            "description": description,
-                            "snippets": snippets,
-                        }
-                        collected_results.append(result)
-                    else:
-                        print(f"invalid source {url} or url in exclude_urls")
-                except Exception as e:
-                    print(f"Error occurs when processing {result=}: {e}\n")
-                    print(f"Error occurs when searching query {query}: {e}")
+                        # raise exception of missing key(s)
+                        if not all([url, title, description, snippets]):
+                            raise ValueError(f"Missing key(s) in result: {d}")
+                        if self.is_valid_source(url) and url not in exclude_urls:
+                            result = {
+                                "url": url,
+                                "title": title,
+                                "description": description,
+                                "snippets": snippets,
+                            }
+                            collected_results.append(result)
+                        else:
+                            print(f"invalid source {url} or url in exclude_urls")
+                    except Exception as e:
+                        print(f"Error occurs when processing result: {e}\n")
+                        print(f"Error occurs when searching query {query}: {e}")
+            except Exception as e:
+                print(f"Error occurs when searching query {query}: {e}")
 
         return collected_results
 
