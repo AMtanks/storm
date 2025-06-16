@@ -126,15 +126,16 @@ class WriteOutline(dspy.Module):
 
 
 class WritePageOutline(dspy.Signature):
-    """Write an outline for a Wikipedia page.
-    Here is the format of your writing:
-    1. Use "#" Title" to indicate section title, "##" Title" to indicate subsection title, "###" Title" to indicate subsubsection title, and so on.
-    2. Do not include other information.
-    3. Do not include topic name itself in the outline.
+    """【必须使用中文编写】为维基百科页面编写大纲。
+    以下是你的写作格式：
+    1. 使用"#" 标题"表示章节标题，"##" 标题"表示子章节标题，"###" 标题"表示子子章节标题，以此类推。
+    2. 不要包含其他信息。
+    3. 不要在大纲中包含主题名称本身。
+    **所有内容必须完全使用中文编写，如遇专业术语或英文概念，可直接使用该单词**
     """
 
-    topic = dspy.InputField(prefix="The topic you want to write: ", format=str)
-    outline = dspy.OutputField(prefix="Write the Wikipedia page outline:\n", format=str)
+    topic = dspy.InputField(prefix="你想要编写的主题： ", format=str)
+    outline = dspy.OutputField(prefix="编写维基百科页面大纲：\n", format=str)
 
 
 class NaiveOutlineGen(dspy.Module):
@@ -151,17 +152,18 @@ class NaiveOutlineGen(dspy.Module):
 
 
 class WritePageOutlineFromConv(dspy.Signature):
-    """Improve an outline for a Wikipedia page. You already have a draft outline that covers the general information. Now you want to improve it based on the information learned from an information-seeking conversation to make it more informative.
-    Here is the format of your writing:
-    1. Use "#" Title" to indicate section title, "##" Title" to indicate subsection title, "###" Title" to indicate subsubsection title, and so on.
-    2. Do not include other information.
-    3. Do not include topic name itself in the outline.
+    """改进维基百科页面的大纲。你已经有一个涵盖一般信息的草稿大纲。现在，你想基于从信息搜索对话中学到的信息来改进它，使其更加丰富。
+    以下是你的写作格式：
+    1. 使用"#" 标题"表示章节标题，"##" 标题"表示子章节标题，"###" 标题"表示子子章节标题，以此类推。
+    2. 不要包含其他信息。
+    3. 不要在大纲中包含主题名称本身。
+    **所有内容必须完全使用中文编写，如遇专业术语或英文概念，可直接使用该单词**
     """
 
-    topic = dspy.InputField(prefix="The topic you want to write: ", format=str)
-    conv = dspy.InputField(prefix="Conversation history:\n", format=str)
-    old_outline = dspy.OutputField(prefix="Current outline:\n", format=str)
+    topic = dspy.InputField(prefix="你想要编写的主题： ", format=str)
+    conv = dspy.InputField(prefix="对话历史：\n", format=str)
+    old_outline = dspy.OutputField(prefix="当前大纲：\n", format=str)
     outline = dspy.OutputField(
-        prefix='Write the Wikipedia page outline (Use "#" Title" to indicate section title, "##" Title" to indicate subsection title, ...):\n',
+        prefix='编写维基百科页面大纲（使用"#" 标题"表示章节标题，"##" 标题"表示子章节标题，...）：\n',
         format=str,
     )

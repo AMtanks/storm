@@ -1,13 +1,16 @@
 import os
+import shutil
+import streamlit as st
+from streamlit_card import card
 
 import demo_util
-import streamlit as st
 from demo_util import DemoFileIOHelper, DemoUIHelper
-from streamlit_card import card
 
 
 # set page config and display title
 def my_articles_page():
+    demo_util.clear_other_page_session_state(page_index=2)
+
     with st.sidebar:
         _, return_button_col = st.columns([2, 5])
         with return_button_col:
@@ -30,27 +33,60 @@ def my_articles_page():
     # if no feature demo selected, display all featured articles as info cards
     def article_card_setup(column_to_add, card_title, article_name):
         with column_to_add:
-            cleaned_article_title = article_name.replace("_", " ")
-            hasClicked = card(
-                title=" / ".join(card_title),
-                text=article_name.replace("_", " "),
-                image=DemoFileIOHelper.read_image_as_base64(
-                    os.path.join(demo_util.get_demo_dir(), "assets", "void.jpg")
-                ),
-                styles=DemoUIHelper.get_article_card_UI_style(boarder_color="#9AD8E1"),
-            )
-            if hasClicked:
-                st.session_state["page2_selected_my_article"] = article_name
-                st.rerun()
+            # Inject CSS for the custom button style
+            st.markdown("""
+                <style>
+                    .stButton>button {
+                        color: #808080;
+                        background-color: transparent;
+                        border: none;
+                    }
+                    .stButton>button:hover {
+                        color: #f63366;
+                        background-color: transparent;
+                        border: none;
+                    }
+                </style>
+            """, unsafe_allow_html=True)
+            
+            col1, col2 = st.columns([0.9, 0.1])
+
+            with col1:
+                hasClicked = card(
+                    title=" / ".join(card_title),
+                    text=article_name.replace("_", " "),
+                    image=DemoFileIOHelper.read_image_as_base64(
+                        os.path.join(demo_util.get_demo_dir(), "assets", "void.jpg")
+                    ),
+                    styles=DemoUIHelper.get_article_card_UI_style(boarder_color="#9AD8E1"),
+                )
+                if hasClicked:
+                    st.session_state["page2_selected_my_article"] = article_name
+                    st.rerun()
+
+            with col2:
+                st.write("") # Vertical alignment
+                if st.button("×", key=f"delete_{article_name}", help="Delete article"):
+                    folder_to_delete = os.path.join(demo_util.get_demo_dir(), "DEMO_WORKING_DIR", article_name)
+                    if os.path.isdir(folder_to_delete):
+                        try:
+                            shutil.rmtree(folder_to_delete)
+                            # Refresh the list
+                            st.session_state["page2_user_articles_file_path_dict"] = DemoFileIOHelper.read_structure_to_dict(
+                                os.path.join(demo_util.get_demo_dir(), "DEMO_WORKING_DIR")
+                            )
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error deleting: {e}")
 
     if "page2_selected_my_article" not in st.session_state:
+        # get article names
+        article_names = sorted(
+            list(st.session_state["page2_user_articles_file_path_dict"].keys())
+        )
         # display article cards
         my_article_columns = st.columns(3)
         if len(st.session_state["page2_user_articles_file_path_dict"]) > 0:
-            # get article names
-            article_names = sorted(
-                list(st.session_state["page2_user_articles_file_path_dict"].keys())
-            )
             # configure pagination
             pagination = st.container()
             bottom_menu = st.columns((1, 4, 1, 1, 1))[1:-1]

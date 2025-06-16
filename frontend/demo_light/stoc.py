@@ -99,19 +99,19 @@ class stoc:
         # customize markdown font size
         custom_css = """
         <style>
-            /* Adjust the font size for headings */
-            h1 { font-size: 28px; }
-            h2 { font-size: 24px; }
-            h3 { font-size: 22px; }
-            h4 { font-size: 20px; }
-            h5 { font-size: 18px; }
+            /* Target Streamlit's markdown container for better specificity */
+            div[data-testid="stMarkdown"] h1 { font-family: 'Source Han Sans CN', sans-serif; font-size: 22px; color: #f63366; }
+            div[data-testid="stMarkdown"] h2 { font-family: 'Source Han Sans CN', sans-serif; font-size: 20px; color: #f63366; }
+            div[data-testid="stMarkdown"] h3 { font-family: 'Source Han Sans CN', sans-serif; font-size: 19px; color: #f63366; }
+            div[data-testid="stMarkdown"] h4 { font-family: 'Source Han Sans CN', sans-serif; font-size: 18px; color: #f63366; }
+            div[data-testid="stMarkdown"] h5 { font-family: 'Source Han Sans CN', sans-serif; font-size: 18px; color: #f63366; }
             /* Adjust the font size for normal text */
-            p { font-size: 18px; }
+            div[data-testid="stMarkdown"] p { font-family: 'Source Han Sans CN', sans-serif; font-weight: 200; font-size: 18px; }
         </style>
         """
         st.markdown(custom_css, unsafe_allow_html=True)
 
-        st.write(text)
+        st.markdown(text)
         self.toc(expander=expander)
 
 

@@ -1,3 +1,11 @@
 @echo off
 echo Starting STORM Wiki SiliconFlow Demo...
-python run_siliconflow_demo.py 
+
+if "%1"=="debug" (
+    echo Debug mode enabled
+    python run_siliconflow_demo.py --debug
+) else (
+    python run_siliconflow_demo.py
+)
+
+pause 

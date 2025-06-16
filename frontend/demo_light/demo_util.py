@@ -3,7 +3,7 @@ import datetime
 import json
 import os
 import re
-from typing import Optional
+from typing import Optional, Dict, List, Tuple, Any, Union
 
 import markdown
 import pytz
@@ -18,18 +18,9 @@ from knowledge_storm import (
     STORMWikiRunner,
     STORMWikiLMConfigs,
 )
-from knowledge_storm.lm import SiliconFlowModel
-from knowledge_storm.rm import DuckDuckGoSearchRM
 from knowledge_storm.storm_wiki.modules.callback import BaseCallbackHandler
 from knowledge_storm.utils import truncate_filename
-import stoc
-
-# Add these imports for SiliconFlow and retrieval modules
-from knowledge_storm import (
-    STORMWikiRunnerArguments,
-    STORMWikiRunner,
-    STORMWikiLMConfigs,
-)
+from stoc import stoc  # 修改导入方式，从stoc模块导入stoc类
 
 # Import SiliconFlow model and retrieval modules
 from knowledge_storm.lm import SiliconFlowModel
@@ -82,7 +73,7 @@ class DemoFileIOHelper:
         Returns:
             str: The content of the file as a single string.
         """
-        with open(file_path) as f:
+        with open(file_path, 'r', encoding='utf-8') as f:
             return f.read()
 
     @staticmethod
@@ -98,7 +89,7 @@ class DemoFileIOHelper:
             dict or list: The content of the JSON file. The type depends on the
                         structure of the JSON file (object or array at the root).
         """
-        with open(file_path) as f:
+        with open(file_path, 'r', encoding='utf-8') as f:
             return json.load(f)
 
     @staticmethod
@@ -501,6 +492,7 @@ def _display_main_article_text(article_text, citation_dict, table_content_sideba
     )
     # '$' needs to be changed to '\$' to avoid being interpreted as LaTeX in st.markdown()
     article_text = article_text.replace("$", "\\$")
+    # 使用类方法调用
     stoc.from_markdown(article_text, table_content_sidebar)
 
 
@@ -549,31 +541,34 @@ def _display_main_article(
         selected_article_file_path_dict
     )
 
-    with st.container(height=1000, border=True):
-        table_content_sidebar = st.sidebar.expander(
-            "**Table of contents**", expanded=True
-        )
-        _display_main_article_text(
-            article_text=article_data.get("article", ""),
-            citation_dict=article_data.get("citations", {}),
-            table_content_sidebar=table_content_sidebar,
-        )
+    _, main_content_col, _ = st.columns([1.8, 6, 2.2])
+
+    with main_content_col:
+        with st.container(height=1000, border=True):
+            table_content_sidebar = st.sidebar.expander(
+                "**Table of contents**", expanded=True
+            )
+            _display_main_article_text(
+                article_text=article_data.get("article", ""),
+                citation_dict=article_data.get("citations", {}),
+                table_content_sidebar=table_content_sidebar,
+            )
+
+        # display conversation history
+        if show_conversation and "conversation_log" in article_data:
+            with st.expander(
+                "**STORM** is powered by a knowledge agent that proactively research a given topic by asking good questions coming from different perspectives.\n\n"
+                ":sunglasses: Click here to view the agent's brain**STORM**ing process!"
+            ):
+                _display_persona_conversations(
+                    conversation_log=article_data.get("conversation_log", {})
+                )
 
     # display reference panel
     if show_reference and "citations" in article_data:
         with st.sidebar.expander("**References**", expanded=True):
             with st.container(height=800, border=False):
                 _display_references(citation_dict=article_data.get("citations", {}))
-
-    # display conversation history
-    if show_conversation and "conversation_log" in article_data:
-        with st.expander(
-            "**STORM** is powered by a knowledge agent that proactively research a given topic by asking good questions coming from different perspectives.\n\n"
-            ":sunglasses: Click here to view the agent's brain**STORM**ing process!"
-        ):
-            _display_persona_conversations(
-                conversation_log=article_data.get("conversation_log", {})
-            )
 
 
 def get_demo_dir():
@@ -619,9 +614,9 @@ def set_storm_runner():
         model=model_name, max_tokens=500, **siliconflow_kwargs
     )
     outline_gen_lm = SiliconFlowModel(model=model_name, max_tokens=400, **siliconflow_kwargs)
-    article_gen_lm = SiliconFlowModel(model=model_name, max_tokens=700, **siliconflow_kwargs)
+    article_gen_lm = SiliconFlowModel(model=model_name, max_tokens=1024, **siliconflow_kwargs)
     article_polish_lm = SiliconFlowModel(
-        model=model_name, max_tokens=4000, **siliconflow_kwargs
+        model=model_name, max_tokens=8192, **siliconflow_kwargs
     )
     
     # 创建一个额外的模型实例用于翻译（如果需要的话）
@@ -685,7 +680,7 @@ def set_storm_runner():
             safe_search="On", 
             region="us-en",
             request_delay=st.session_state.get("request_delay", 1.0),
-            max_retries=st.session_state.get("max_retries", 99),
+            max_retries=st.session_state.get("max_retries", 10),
             use_multiple_backends=st.session_state.get("use_multiple_backends", True),
             exponential_backoff=st.session_state.get("exponential_backoff", True),
             max_delay=st.session_state.get("max_delay", 5.0),
@@ -749,7 +744,7 @@ def display_article_page(
 ):
     if show_title:
         st.markdown(
-            f"<h2 style='text-align: center;'>{selected_article_name.replace('_', ' ')}</h2>",
+            f"<h2 style='text-align: center; font-family: \"Source Han Sans CN\", sans-serif;'>{selected_article_name.replace('_', ' ')}</h2>",
             unsafe_allow_html=True,
         )
 
@@ -788,7 +783,7 @@ class StreamlitCallbackHandler(BaseCallbackHandler):
                         padding: 0px;
                     }}
                     </style>
-                    <div class="small-font">Finish browsing <a href="{url}" class="small-font" target="_blank">{url}</a>.</div>
+                    <div class="small-font">Finish browsing <a href="{url}" class="small-font" target="_blank" style="color: #f63366;">{url}</a>.</div>
                     """,
                 unsafe_allow_html=True,
             )

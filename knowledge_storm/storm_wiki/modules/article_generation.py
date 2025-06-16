@@ -134,7 +134,7 @@ class StormArticleGenerationModule(ArticleGenerationModule):
 
 
 class ConvToSection(dspy.Module):
-    """Use the information collected from the information-seeking conversation to write a section."""
+    """使用从信息搜索对话中收集的信息来编写章节。"""
 
     def __init__(self, engine: Union[dspy.dsp.LM, dspy.dsp.HFModel]):
         super().__init__()
@@ -161,11 +161,10 @@ class ConvToSection(dspy.Module):
 
 class WriteSection(dspy.Signature):
     """基于收集的信息编写维基百科章节。
-
+    **必须用中文编写所有内容，如果某些英文单词能够更好表达原意，可以直接使用该单词**。
     以下是你的写作格式：
         1. 使用"#" 标题"表示章节标题，"##" 标题"表示子章节标题，"###" 标题"表示子子章节标题，以此类推。
         2. 在行内使用 [1], [2], ..., [n]（例如，"美国的首都是华盛顿特区。[1][3]"）。你不需要在末尾包含"参考文献"或"来源"部分来列出来源。
-    **请用中文编写章节内容**。
     """
 
     info = dspy.InputField(prefix="收集的信息：\n", format=str)

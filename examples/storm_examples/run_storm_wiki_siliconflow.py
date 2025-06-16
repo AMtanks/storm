@@ -115,9 +115,9 @@ def main(args):
         model=model_name, max_tokens=500, **siliconflow_kwargs
     )
     outline_gen_lm = SiliconFlowModel(model=model_name, max_tokens=400, **siliconflow_kwargs)
-    article_gen_lm = SiliconFlowModel(model=model_name, max_tokens=700, **siliconflow_kwargs)
+    article_gen_lm = SiliconFlowModel(model=model_name, max_tokens=1024, **siliconflow_kwargs)
     article_polish_lm = SiliconFlowModel(
-        model=model_name, max_tokens=4000, **siliconflow_kwargs
+        model=model_name, max_tokens=8192, **siliconflow_kwargs
     )
     
     # 创建一个额外的模型实例用于翻译

@@ -51,7 +51,7 @@ litellm.cache = Cache(disk_cache_dir=disk_cache_dir, type="disk")
 #             )
 
 # litellm = LitellmPlaceholder()
-LM_LRU_CACHE_MAX_SIZE = 3000
+LM_LRU_CACHE_MAX_SIZE = 8192
 
 
 class LM:

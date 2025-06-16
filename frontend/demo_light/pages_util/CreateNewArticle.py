@@ -7,7 +7,6 @@ from demo_util import (
     DemoFileIOHelper,
     DemoTextProcessingHelper,
     DemoUIHelper,
-    truncate_filename,
 )
 
 
@@ -104,7 +103,7 @@ def handle_not_started():
                         .replace(" ", "_")
                         .replace("/", "_")
                     )
-                    st.session_state["page3_topic_name_truncated"] = truncate_filename(
+                    st.session_state["page3_topic_name_truncated"] = demo_util.truncate_filename(
                         st.session_state["page3_topic_name_cleaned"]
                     )
                     if not pass_appropriateness_check:
