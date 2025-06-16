@@ -11,18 +11,37 @@ import streamlit as st
 
 # If you install the source code instead of the `knowledge-storm` package,
 # Uncomment the following lines:
-# import sys
-# sys.path.append('../../')
+import sys
+sys.path.append('../../')
 from knowledge_storm import (
     STORMWikiRunnerArguments,
     STORMWikiRunner,
     STORMWikiLMConfigs,
 )
-from knowledge_storm.lm import OpenAIModel
-from knowledge_storm.rm import YouRM
+from knowledge_storm.lm import SiliconFlowModel
+from knowledge_storm.rm import DuckDuckGoSearchRM
 from knowledge_storm.storm_wiki.modules.callback import BaseCallbackHandler
 from knowledge_storm.utils import truncate_filename
-from stoc import stoc
+import stoc
+
+# Add these imports for SiliconFlow and retrieval modules
+from knowledge_storm import (
+    STORMWikiRunnerArguments,
+    STORMWikiRunner,
+    STORMWikiLMConfigs,
+)
+
+# Import SiliconFlow model and retrieval modules
+from knowledge_storm.lm import SiliconFlowModel
+from knowledge_storm.rm import (
+    YouRM,
+    BingSearch,
+    BraveRM,
+    SerperRM,
+    DuckDuckGoSearchRM,
+    TavilySearchRM,
+    SearXNG,
+)
 
 
 class DemoFileIOHelper:
@@ -581,31 +600,145 @@ def set_storm_runner():
 
     # configure STORM runner
     llm_configs = STORMWikiLMConfigs()
-    llm_configs.init_openai_model(
-        openai_api_key=st.secrets["OPENAI_API_KEY"], openai_type="openai"
+    
+    # 设置SiliconFlow API参数
+    siliconflow_kwargs = {
+        "api_key": st.secrets.get("SILICONFLOW_API_KEY", "sk-lpmnkrmjecjryeruvsdrovodolqnjhsiohbjwgbinqllkomy"),
+        "api_base": "https://api.siliconflow.cn/v1",
+        "temperature": st.session_state.get("temperature", 1.0),
+        "top_p": st.session_state.get("top_p", 0.9),
+    }
+    
+    # 使用SiliconFlowModel替代OpenAIModel
+    model_name = "Qwen/Qwen2.5-72B-Instruct"
+    
+    conv_simulator_lm = SiliconFlowModel(
+        model=model_name, max_tokens=500, **siliconflow_kwargs
     )
-    llm_configs.set_question_asker_lm(
-        OpenAIModel(
-            model="gpt-4-1106-preview",
-            api_key=st.secrets["OPENAI_API_KEY"],
-            api_provider="openai",
-            max_tokens=500,
-            temperature=1.0,
-            top_p=0.9,
-        )
+    question_asker_lm = SiliconFlowModel(
+        model=model_name, max_tokens=500, **siliconflow_kwargs
     )
+    outline_gen_lm = SiliconFlowModel(model=model_name, max_tokens=400, **siliconflow_kwargs)
+    article_gen_lm = SiliconFlowModel(model=model_name, max_tokens=700, **siliconflow_kwargs)
+    article_polish_lm = SiliconFlowModel(
+        model=model_name, max_tokens=4000, **siliconflow_kwargs
+    )
+    
+    # 创建一个额外的模型实例用于翻译（如果需要的话）
+    translation_lm = SiliconFlowModel(
+        model=model_name, max_tokens=100, **siliconflow_kwargs
+    )
+    
+    llm_configs.set_conv_simulator_lm(conv_simulator_lm)
+    llm_configs.set_question_asker_lm(question_asker_lm)
+    llm_configs.set_outline_gen_lm(outline_gen_lm)
+    llm_configs.set_article_gen_lm(article_gen_lm)
+    llm_configs.set_article_polish_lm(article_polish_lm)
+    
+    # 设置运行参数
     engine_args = STORMWikiRunnerArguments(
         output_dir=current_working_dir,
-        max_conv_turn=3,
-        max_perspective=3,
-        search_top_k=3,
-        retrieve_top_k=5,
+        max_conv_turn=st.session_state.get("max_conv_turn", 3),
+        max_perspective=st.session_state.get("max_perspective", 3),
+        search_top_k=st.session_state.get("search_top_k", 3),
+        retrieve_top_k=st.session_state.get("retrieve_top_k", 5),
+        max_thread_num=st.session_state.get("max_thread_num", 3),
     )
 
-    rm = YouRM(ydc_api_key=st.secrets["YDC_API_KEY"], k=engine_args.search_top_k)
+    # 根据选择的搜索引擎设置检索模块
+    retriever = st.session_state.get("retriever", "duckduckgo")
+    
+    if retriever == "bing":
+        rm = BingSearch(
+            bing_search_api=st.secrets.get("BING_SEARCH_API_KEY", ""),
+            k=engine_args.search_top_k,
+        )
+    elif retriever == "you":
+        rm = YouRM(ydc_api_key=st.secrets.get("YDC_API_KEY", ""), k=engine_args.search_top_k)
+    elif retriever == "brave":
+        rm = BraveRM(
+            brave_search_api_key=st.secrets.get("BRAVE_API_KEY", ""),
+            k=engine_args.search_top_k,
+        )
+    elif retriever == "serper":
+        rm = SerperRM(
+            serper_search_api_key=st.secrets.get("SERPER_API_KEY", ""),
+            query_params={"autocorrect": True, "num": 10, "page": 1},
+        )
+    elif retriever == "tavily":
+        proxy = st.secrets.get("HTTP_PROXY", None)
+        rm = TavilySearchRM(
+            tavily_search_api_key=st.secrets.get("TAVILY_API_KEY", ""),
+            k=engine_args.search_top_k,
+            include_raw_content=True,
+            proxy=proxy,
+            exclude_domains=["wikipedia.org", "en.wikipedia.org"],
+        )
+    elif retriever == "searxng":
+        rm = SearXNG(
+            searxng_api_key=st.secrets.get("SEARXNG_API_KEY", ""), 
+            k=engine_args.search_top_k
+        )
+    else:  # Default to duckduckgo
+        rm = DuckDuckGoSearchRM(
+            k=engine_args.search_top_k, 
+            safe_search="On", 
+            region="us-en",
+            request_delay=st.session_state.get("request_delay", 1.0),
+            max_retries=st.session_state.get("max_retries", 99),
+            use_multiple_backends=st.session_state.get("use_multiple_backends", True),
+            exponential_backoff=st.session_state.get("exponential_backoff", True),
+            max_delay=st.session_state.get("max_delay", 5.0),
+            webpage_helper_max_threads=st.session_state.get("webpage_helper_max_threads", 1)
+        )
 
     runner = STORMWikiRunner(engine_args, llm_configs, rm)
     st.session_state["runner"] = runner
+    st.session_state["translation_lm"] = translation_lm  # 存储翻译模型
+
+
+def translate_topic_to_english(topic):
+    """
+    将输入的主题翻译成英文，如原本就是英文，则直接返回
+    """
+    # 检测主题是否包含中文字符
+    if any('\u4e00' <= char <= '\u9fff' for char in topic):
+        if "translation_lm" in st.session_state:
+            translation_lm = st.session_state["translation_lm"]
+            prompt = f"将输入的主题翻译成英文，如原本就是英文，则直接返回，只需要返回翻译结果，不要添加任何其他内容：\n\n{topic}"
+            
+            try:
+                response = translation_lm(prompt)
+                if isinstance(response, list) and len(response) > 0:
+                    english_topic = response[0].strip()
+                else:
+                    english_topic = str(response).strip()
+                
+                return english_topic, True  # 返回英文主题和一个标志表示这是翻译的
+            except Exception as e:
+                st.error(f"翻译主题时出错: {str(e)}")
+                return topic, False  # 如果翻译失败，返回原始主题
+        return topic, False
+    
+    return topic, False  # 如果不是中文，直接返回原始主题
+
+
+def sanitize_topic(topic):
+    """
+    Sanitize the topic name for use in file names.
+    Remove or replace characters that are not allowed in file names.
+    """
+    # Replace spaces with underscores
+    topic = topic.replace(" ", "_")
+
+    # Remove any character that isn't alphanumeric, underscore, or hyphen
+    topic = re.sub(r"[^a-zA-Z0-9_-]", "", topic)
+
+    # Ensure the topic isn't empty after sanitization
+    if not topic:
+        topic = "unnamed_topic"
+
+    return topic
 
 
 def display_article_page(
@@ -675,3 +808,18 @@ class StreamlitCallbackHandler(BaseCallbackHandler):
 
     def on_outline_refinement_end(self, outline: str, **kwargs):
         self.status_container.success(f"Finish leveraging the collected information.")
+        
+    def on_article_generation_start(self, **kwargs):
+        self.status_container.info("Starting to generate the article...")
+        
+    def on_article_generation_end(self, **kwargs):
+        self.status_container.success("Article generation completed!")
+        
+    def on_article_polish_start(self, **kwargs):
+        self.status_container.info("Starting to polish the article...")
+        
+    def on_article_polish_end(self, **kwargs):
+        self.status_container.success("Article polishing completed!")
+        
+    def on_topic_translation(self, original_topic: str, translated_topic: str, **kwargs):
+        self.status_container.info(f"Translated topic: {original_topic} → {translated_topic}")

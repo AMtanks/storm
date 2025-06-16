@@ -734,16 +734,28 @@ class DuckDuckGoSearchRM(dspy.Retrieve):
         is_valid_source: Callable = None,
         min_char_count: int = 150,
         snippet_chunk_size: int = 1000,
-        webpage_helper_max_threads=10,
+        webpage_helper_max_threads=5,
         safe_search: str = "On",
         region: str = "us-en",
+        request_delay: float = 5.0,  # 降低默认延迟到5秒
+        max_retries: int = 99,  # 增加最大重试次数到99
+        use_multiple_backends: bool = True,  # 是否使用多个后端轮换
+        exponential_backoff: bool = True,  # 是否使用指数退避
+        max_delay: float = 8.0,  # 设置最大延迟时间为8秒
     ):
         """
         Params:
-            min_char_count: Minimum character count for the article to be considered valid.
-            snippet_chunk_size: Maximum character count for each snippet.
-            webpage_helper_max_threads: Maximum number of threads to use for webpage helper.
-            **kwargs: Additional parameters for the OpenAI API.
+            min_char_count: 文章被视为有效的最小字符数。
+            snippet_chunk_size: 每个文本片段的最大字符数。
+            webpage_helper_max_threads: 网页助手使用的最大线程数。
+            safe_search: DuckDuckGo的安全搜索设置。
+            region: DuckDuckGo的区域设置。
+            request_delay: 请求之间的延迟时间（秒），用于避免速率限制。
+            max_retries: 最大重试次数。
+            use_multiple_backends: 是否使用多个后端轮换。
+            exponential_backoff: 是否使用指数退避。
+            max_delay: 最大延迟时间（秒）。
+            **kwargs: OpenAI API的额外参数。
         """
         super().__init__(k=k)
         try:
@@ -759,17 +771,28 @@ class DuckDuckGoSearchRM(dspy.Retrieve):
             max_thread_num=webpage_helper_max_threads,
         )
         self.usage = 0
-        # All params for search can be found here:
-        #   https://duckduckgo.com/duckduckgo-help-pages/settings/params/
-
-        # Sets the backend to be api
-        self.duck_duck_go_backend = "api"
-
-        # Only gets safe search results
+        
+        # 设置请求延迟和重试参数
+        self.request_delay = request_delay
+        self.max_retries = max_retries
+        self.use_multiple_backends = use_multiple_backends
+        self.exponential_backoff = exponential_backoff
+        self.max_delay = max_delay  # 最大延迟时间
+        
+        # 请求计数器和时间戳，用于限流
+        self.request_count = 0
+        self.last_request_time = 0
+        
+        # 设置可用的后端列表
+        self.available_backends = ["lite", "html", "api"]
+        self.current_backend_index = 0
+        
+        # 设置DuckDuckGo搜索参数
         self.duck_duck_go_safe_search = safe_search
-
-        # Specifies the region that the search will use
         self.duck_duck_go_region = region
+        
+        # 初始使用第一个后端
+        self.duck_duck_go_backend = self.available_backends[0]
 
         # If not None, is_valid_source shall be a function that takes a URL and returns a boolean.
         if is_valid_source:
@@ -777,27 +800,138 @@ class DuckDuckGoSearchRM(dspy.Retrieve):
         else:
             self.is_valid_source = lambda x: True
 
-        # Import the duckduckgo search library found here: https://github.com/deedy5/duckduckgo_search
+        # 导入DuckDuckGo搜索库
         self.ddgs = DDGS()
+        
+        # 设置锁，防止并发请求
+        import threading
+        self._lock = threading.Lock()
+        
+        logging.info(f"初始化DuckDuckGoSearchRM完成，请求延迟: {request_delay}秒，最大重试次数: {max_retries}，最大延迟: {max_delay}秒")
 
     def get_usage_and_reset(self):
         usage = self.usage
         self.usage = 0
         return {"DuckDuckGoRM": usage}
+        
+    def _rotate_backend(self):
+        """轮换到下一个可用的后端"""
+        with self._lock:
+            self.current_backend_index = (self.current_backend_index + 1) % len(self.available_backends)
+            self.duck_duck_go_backend = self.available_backends[self.current_backend_index]
+            logging.info(f"轮换到新的后端: {self.duck_duck_go_backend}")
+            return self.duck_duck_go_backend
 
-    @backoff.on_exception(
-        backoff.expo,
-        (Exception,),
-        max_time=1000,
-        max_tries=8,
-        on_backoff=backoff_hdlr,
-        giveup=giveup_hdlr,
-    )
+    def _calculate_delay(self, retry_count):
+        """根据重试次数计算延迟时间，并限制最大延迟"""
+        if self.exponential_backoff:
+            # 指数退避: 基础延迟 * (2^重试次数)，但不超过最大延迟
+            base_delay = min(self.request_delay * (2 ** min(retry_count, 3)), self.max_delay)
+            # 添加随机抖动以避免同步请求
+            import random
+            jitter = random.uniform(0, 0.1 * base_delay)
+            # 确保总延迟不超过最大值
+            return min(base_delay + jitter, self.max_delay)
+        else:
+            return min(self.request_delay, self.max_delay)
+
     def request(self, query: str):
-        results = self.ddgs.text(
-            query, max_results=self.k, backend=self.duck_duck_go_backend
-        )
-        return results
+        """发送请求到DuckDuckGo搜索API，添加智能延迟和错误处理"""
+        import time
+        
+        # 获取当前时间
+        current_time = time.time()
+        
+        # 确保请求间隔符合要求
+        with self._lock:
+            time_since_last_request = current_time - self.last_request_time
+            if time_since_last_request < self.request_delay and self.last_request_time > 0:
+                # 如果距离上次请求时间不足，则等待
+                wait_time = min(self.request_delay - time_since_last_request, self.max_delay)
+                if wait_time > 0.1:  # 只有等待时间大于0.1秒才记录日志和等待
+                    logging.info(f"等待 {wait_time:.2f} 秒以符合速率限制...")
+                    time.sleep(wait_time)
+            
+            # 更新请求时间戳和计数器
+            self.last_request_time = time.time()
+            self.request_count += 1
+        
+        # 初始化重试计数器
+        retry_count = 0
+        last_exception = None
+        original_backend = self.duck_duck_go_backend
+        
+        # 记录初始尝试的时间
+        start_time = time.time()
+        
+        while retry_count <= self.max_retries:
+            try:
+                # 记录当前使用的后端
+                current_backend = self.duck_duck_go_backend
+                logging.info(f"使用后端 {current_backend} 发送请求: '{query[:30]}...'")
+                
+                # 发送请求
+                results = self.ddgs.text(
+                    query, 
+                    max_results=self.k, 
+                    backend=current_backend,
+                    safesearch=self.duck_duck_go_safe_search,
+                    region=self.duck_duck_go_region
+                )
+                
+                # 将结果转换为列表（因为可能是生成器）
+                results = list(results)
+                
+                if results:
+                    logging.info(f"成功获取结果，找到 {len(results)} 条记录")
+                    # 如果不是使用原始后端成功的，切换回原始后端
+                    if self.duck_duck_go_backend != original_backend:
+                        self.duck_duck_go_backend = original_backend
+                        logging.info(f"切换回原始后端: {original_backend}")
+                    return results
+                else:
+                    logging.warning(f"请求成功但没有找到结果: '{query[:30]}...'")
+                    # 如果没有结果但请求成功，不重试，直接返回空列表
+                    return []
+                    
+            except Exception as e:
+                last_exception = e
+                retry_count += 1
+                
+                error_str = str(e)
+                logging.warning(f"DuckDuckGo搜索错误 (尝试 {retry_count}/{self.max_retries+1}): {error_str}")
+                
+                # 检查是否是速率限制错误
+                if "Ratelimit" in error_str or "rate limit" in error_str.lower():
+                    if self.use_multiple_backends:
+                        # 轮换后端
+                        self._rotate_backend()
+                        logging.info(f"遇到速率限制，切换到后端: {self.duck_duck_go_backend}")
+                        # 立即尝试新后端，不等待
+                        continue
+                    
+                    # 计算延迟时间，但不超过最大等待时间
+                    delay = min(self._calculate_delay(retry_count), self.max_delay)
+                    # 确保累计等待时间不超过最大值
+                    elapsed = time.time() - start_time
+                    if elapsed + delay > self.max_delay * 2:
+                        delay = max(0, self.max_delay * 2 - elapsed)
+                        
+                    if delay > 0.1:  # 只有等待时间大于0.1秒才记录日志和等待
+                        logging.info(f"等待 {delay:.2f} 秒后重试...")
+                        time.sleep(delay)
+                else:
+                    # 其他类型的错误，使用较短的延迟重试
+                    short_delay = min(1.0, self.request_delay)
+                    logging.info(f"等待 {short_delay:.2f} 秒后重试...")
+                    time.sleep(short_delay)
+        
+        # 如果所有重试都失败，抛出最后一个异常
+        if last_exception:
+            logging.error(f"达到最大重试次数 ({self.max_retries})，放弃请求")
+            raise last_exception
+        
+        return []
 
     def forward(
         self, query_or_queries: Union[str, List[str]], exclude_urls: List[str] = []
@@ -819,39 +953,45 @@ class DuckDuckGoSearchRM(dspy.Retrieve):
         collected_results = []
 
         for query in queries:
-            #  list of dicts that will be parsed to return
-            results = self.request(query)
+            try:
+                #  list of dicts that will be parsed to return
+                results = self.request(query)
 
-            for d in results:
-                # assert d is dict
-                if not isinstance(d, dict):
-                    print(f"Invalid result: {d}\n")
-                    continue
+                for d in results:
+                    # assert d is dict
+                    if not isinstance(d, dict):
+                        logging.warning(f"无效结果: {d}")
+                        continue
 
-                try:
-                    # ensure keys are present
-                    url = d.get("href", None)
-                    title = d.get("title", None)
-                    description = d.get("description", title)
-                    snippets = [d.get("body", None)]
+                    try:
+                        # ensure keys are present
+                        url = d.get("href", None)
+                        title = d.get("title", None)
+                        description = d.get("description", title)
+                        snippets = [d.get("body", None)]
 
-                    # raise exception of missing key(s)
-                    if not all([url, title, description, snippets]):
-                        raise ValueError(f"Missing key(s) in result: {d}")
-                    if self.is_valid_source(url) and url not in exclude_urls:
-                        result = {
-                            "url": url,
-                            "title": title,
-                            "description": description,
-                            "snippets": snippets,
-                        }
-                        collected_results.append(result)
-                    else:
-                        print(f"invalid source {url} or url in exclude_urls")
-                except Exception as e:
-                    print(f"Error occurs when processing {result=}: {e}\n")
-                    print(f"Error occurs when searching query {query}: {e}")
+                        # raise exception of missing key(s)
+                        if not all([url, title, description, snippets]):
+                            logging.warning(f"结果缺少必要字段: {d}")
+                            continue
+                            
+                        if self.is_valid_source(url) and url not in exclude_urls:
+                            result = {
+                                "url": url,
+                                "title": title,
+                                "description": description,
+                                "snippets": snippets,
+                            }
+                            collected_results.append(result)
+                        else:
+                            logging.info(f"无效来源或URL已排除: {url}")
+                    except Exception as e:
+                        logging.error(f"处理结果时出错: {str(e)}")
+                        
+            except Exception as e:
+                logging.error(f"搜索查询 '{query}' 时出错: {str(e)}")
 
+        logging.info(f"总共收集到 {len(collected_results)} 个结果")
         return collected_results
 
 

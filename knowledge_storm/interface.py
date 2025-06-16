@@ -417,7 +417,7 @@ def log_execution_time(func):
         result = func(self, *args, **kwargs)
         end_time = time.time()
         execution_time = end_time - start_time
-        logger.info(f"{func.__name__} executed in {execution_time:.4f} seconds")
+        logger.info(f"{func.__name__} 执行时间: {execution_time:.4f} 秒")
         self.time[func.__name__] = execution_time
         return result
 
@@ -499,7 +499,7 @@ class Engine(ABC):
             end_time = time.time()
             execution_time = end_time - start_time
             self.time[func.__name__] = execution_time
-            logger.info(f"{func.__name__} executed in {execution_time:.4f} seconds")
+            logger.info(f"{func.__name__} 执行时间: {execution_time:.4f} 秒")
             self.lm_cost[func.__name__] = self.lm_configs.collect_and_reset_lm_usage()
             if hasattr(self, "retriever"):
                 self.rm_cost[func.__name__] = (

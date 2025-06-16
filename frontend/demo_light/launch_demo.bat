@@ -1,0 +1,3 @@
+@echo off
+echo Starting STORM Wiki SiliconFlow Demo...
+python run_siliconflow_demo.py 

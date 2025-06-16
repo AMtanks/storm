@@ -1,10 +1,13 @@
-# STORM Minimal User Interface
+# STORM Wiki SiliconFlow User Interface
 
-This is a minimal user interface for `STORMWikiRunner` which includes the following features:
+This is a user interface for `STORMWikiRunner` powered by SiliconFlow API and various search engines. It includes the following features:
+
 1. Allowing user to create a new article through the "Create New Article" page.
 2. Showing the intermediate steps of STORMWikiRunner in real-time when creating an article.
 3. Displaying the written article and references side by side.
 4. Allowing user to view previously created articles through the "My Articles" page.
+5. Supporting Chinese topic input with automatic translation for better search results.
+6. Configurable model parameters and search engines.
 
 <p align="center">
   <img src="assets/create_article.jpg" style="width: 70%; height: auto;">
@@ -15,17 +18,61 @@ This is a minimal user interface for `STORMWikiRunner` which includes the follow
 </p>
 
 ## Setup
+
 1. Make sure you have installed `knowledge-storm` or set up the source code correctly.
 2. Install additional packages required by the user interface:
-    ```bash
-    pip install -r requirements.txt
-    ```
-2. Make sure you set up the API keys following the instructions in the main README file. Create a copy of `secrets.toml` and place it under `.streamlit/`.
-3. Run the following command to start the user interface:
-    ```bash
-    streamlit run storm.py
-    ```
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Set up API keys in a `.streamlit/secrets.toml` file with the following structure:
+
+   ```toml
+   SILICONFLOW_API_KEY = "your-siliconflow-api-key"
+
+   # Optional: Search engine API keys
+   YDC_API_KEY = "your-you-api-key"
+   BING_SEARCH_API_KEY = "your-bing-api-key"
+   BRAVE_API_KEY = "your-brave-api-key"
+   SERPER_API_KEY = "your-serper-api-key"
+   TAVILY_API_KEY = "your-tavily-api-key"
+   SEARXNG_API_KEY = "your-searxng-api-key"
+
+   # Optional: HTTP proxy for some API calls
+   HTTP_PROXY = "your-proxy-url"
+   ```
+
+4. Run the following command to start the user interface:
+   ```bash
+   streamlit run storm.py
+   ```
    The user interface will create a `DEMO_WORKING_DIR` directory in the current directory to store the outputs.
+
+## Features
+
+### Multi-language Support
+
+The application supports non-English topics (particularly Chinese) by automatically translating them to English for better search results, while preserving the original language in the final output.
+
+### Configurable Search Engines
+
+You can choose from the following search engines:
+
+- DuckDuckGo (default, no API key required)
+- Bing Search
+- You.com
+- Brave Search
+- Serper API
+- Tavily Search
+- SearXNG
+
+### Advanced Settings
+
+In the "Create New Article" page, you can configure:
+
+- Model parameters (temperature, top_p)
+- Pipeline stages (research, outline generation, article generation, polishing)
+- Search engine settings
+- Research parameters (conversation turns, perspectives, etc.)
 
 ## Customization
 

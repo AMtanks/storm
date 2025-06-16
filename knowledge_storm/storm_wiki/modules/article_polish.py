@@ -54,22 +54,23 @@ class StormArticlePolishingModule(ArticlePolishingModule):
 
 
 class WriteLeadSection(dspy.Signature):
-    """Write a lead section for the given Wikipedia page with the following guidelines:
-    1. The lead should stand on its own as a concise overview of the article's topic. It should identify the topic, establish context, explain why the topic is notable, and summarize the most important points, including any prominent controversies.
-    2. The lead section should be concise and contain no more than four well-composed paragraphs.
-    3. The lead section should be carefully sourced as appropriate. Add inline citations (e.g., "Washington, D.C., is the capital of the United States.[1][3].") where necessary.
+    """请为给定的维基百科页面编写一个引言部分，遵循以下指导原则：
+    1. 引言应该作为文章主题的简明概述独立存在。它应该确定主题，建立背景，解释为什么该主题值得注意，并总结最重要的要点，包括任何突出的争议。
+    2. 引言部分应简洁明了，不超过四个结构良好的段落。
+    3. 引言部分应适当地注明来源。在必要时添加内联引用（例如，"华盛顿特区是美国的首都。[1][3]"）。
+    **请用中文编写引言部分**。
     """
 
-    topic = dspy.InputField(prefix="The topic of the page: ", format=str)
-    draft_page = dspy.InputField(prefix="The draft page:\n", format=str)
-    lead_section = dspy.OutputField(prefix="Write the lead section:\n", format=str)
+    topic = dspy.InputField(prefix="页面的主题: ", format=str)
+    draft_page = dspy.InputField(prefix="草稿页面:\n", format=str)
+    lead_section = dspy.OutputField(prefix="编写引言部分:\n", format=str)
 
 
 class PolishPage(dspy.Signature):
-    """You are a faithful text editor that is good at finding repeated information in the article and deleting them to make sure there is no repetition in the article. You won't delete any non-repeated part in the article. You will keep the inline citations and article structure (indicated by "#", "##", etc.) appropriately. Do your job for the following article."""
+    """你是一位擅长查找文章中重复信息并删除它们的忠实文本编辑者，确保文章中没有重复内容。你不会删除文章中任何非重复的部分。你将适当地保留内联引用和文章结构（由"#"，"##"等标示）。请为以下文章执行这项任务。"""
 
-    draft_page = dspy.InputField(prefix="The draft article:\n", format=str)
-    page = dspy.OutputField(prefix="Your revised article:\n", format=str)
+    draft_page = dspy.InputField(prefix="草稿文章:\n", format=str)
+    page = dspy.OutputField(prefix="你修订后的文章:\n", format=str)
 
 
 class PolishPageModule(dspy.Module):

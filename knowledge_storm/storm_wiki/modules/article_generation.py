@@ -160,17 +160,18 @@ class ConvToSection(dspy.Module):
 
 
 class WriteSection(dspy.Signature):
-    """Write a Wikipedia section based on the collected information.
+    """基于收集的信息编写维基百科章节。
 
-    Here is the format of your writing:
-        1. Use "#" Title" to indicate section title, "##" Title" to indicate subsection title, "###" Title" to indicate subsubsection title, and so on.
-        2. Use [1], [2], ..., [n] in line (for example, "The capital of the United States is Washington, D.C.[1][3]."). You DO NOT need to include a References or Sources section to list the sources at the end.
+    以下是你的写作格式：
+        1. 使用"#" 标题"表示章节标题，"##" 标题"表示子章节标题，"###" 标题"表示子子章节标题，以此类推。
+        2. 在行内使用 [1], [2], ..., [n]（例如，"美国的首都是华盛顿特区。[1][3]"）。你不需要在末尾包含"参考文献"或"来源"部分来列出来源。
+    **请用中文编写章节内容**。
     """
 
-    info = dspy.InputField(prefix="The collected information:\n", format=str)
-    topic = dspy.InputField(prefix="The topic of the page: ", format=str)
-    section = dspy.InputField(prefix="The section you need to write: ", format=str)
+    info = dspy.InputField(prefix="收集的信息：\n", format=str)
+    topic = dspy.InputField(prefix="页面的主题： ", format=str)
+    section = dspy.InputField(prefix="你需要编写的章节： ", format=str)
     output = dspy.OutputField(
-        prefix="Write the section with proper inline citations (Start your writing with # section title. Don't include the page title or try to write other sections):\n",
+        prefix="请编写带有适当内联引用的章节（以 # 章节标题开始你的写作。不要包含页面标题或尝试编写其他章节）：\n",
         format=str,
     )

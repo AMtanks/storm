@@ -44,6 +44,32 @@ from knowledge_storm.utils import load_api_key
 # 添加logger定义
 logger = logging.getLogger(__name__)
 
+def translate_topic_to_english(model, topic):
+    """
+    将输入的主题翻译成英文，如原本就是英文，则直接返回
+    """
+    # 检测主题是否包含中文字符
+    if any('\u4e00' <= char <= '\u9fff' for char in topic):
+        logger.info("正在调用翻译模型...")
+        prompt = f"将输入的主题翻译成英文，如原本就是英文，则直接返回，只需要返回翻译结果，不要添加任何其他内容：\n\n{topic}"
+        
+        try:
+            # 使用 __call__ 方法而不是 generate
+            response = model(prompt)
+            if isinstance(response, list) and len(response) > 0:
+                english_topic = response[0].strip()
+            else:
+                english_topic = str(response).strip()
+                
+            logger.info(f"原始主题: {topic}")
+            logger.info(f"英文主题: {english_topic}")
+            return english_topic, True  # 返回英文主题和一个标志表示这是翻译的
+        except Exception as e:
+            logger.error(f"翻译主题时出错: {str(e)}")
+            return topic, False  # 如果翻译失败，返回原始主题
+    
+    return topic, False  # 如果不是中文，直接返回原始主题
+
 def sanitize_topic(topic):
     """
     Sanitize the topic name for use in file names.
@@ -93,6 +119,11 @@ def main(args):
     article_polish_lm = SiliconFlowModel(
         model=model_name, max_tokens=4000, **siliconflow_kwargs
     )
+    
+    # 创建一个额外的模型实例用于翻译
+    translation_lm = SiliconFlowModel(
+        model=model_name, max_tokens=100, **siliconflow_kwargs
+    )
 
     lm_configs.set_conv_simulator_lm(conv_simulator_lm)
     lm_configs.set_question_asker_lm(question_asker_lm)
@@ -125,7 +156,15 @@ def main(args):
             )
         case "duckduckgo":
             rm = DuckDuckGoSearchRM(
-                k=engine_args.search_top_k, safe_search="On", region="us-en"
+                k=engine_args.search_top_k, 
+                safe_search="On", 
+                region="us-en",
+                request_delay=1.0,  # 基础请求延迟3秒
+                max_retries=99,  # 最大重试次数99
+                use_multiple_backends=True,  # 启用多后端轮换
+                exponential_backoff=True,  # 启用指数退避
+                max_delay=5.0,  # 最大延迟5秒
+                webpage_helper_max_threads=1  # 减少并发线程数
             )
         case "serper":
             rm = SerperRM(
@@ -154,17 +193,37 @@ def main(args):
 
     runner = STORMWikiRunner(engine_args, lm_configs, rm)
 
-    topic = input("Topic: ")
-    sanitized_topic = sanitize_topic(topic)
+    original_topic = input("Topic: ")
+    
+    # 如果输入的是中文，翻译为英文用于搜索
+    english_topic, is_translated = translate_topic_to_english(translation_lm, original_topic)
+    
+    # 使用英文主题进行搜索和处理
+    search_topic = english_topic if is_translated else original_topic
+    
+    # 但使用原始主题（可能是中文）作为文件名
+    sanitized_topic = sanitize_topic(original_topic)
 
     try:
+        # 如果是翻译的主题，保存原始中文主题和英文主题的映射关系
+        if is_translated:
+            # 创建输出目录
+            output_dir = os.path.join(args.output_dir, sanitized_topic)
+            os.makedirs(output_dir, exist_ok=True)
+            
+            # 保存主题映射关系
+            with open(os.path.join(output_dir, "topic_translation.txt"), "w", encoding="utf-8") as f:
+                f.write(f"原始主题: {original_topic}\n")
+                f.write(f"英文主题: {english_topic}\n")
+        
         runner.run(
-            topic=sanitized_topic,
+            topic=search_topic,  # 使用英文主题进行搜索
             do_research=args.do_research,
             do_generate_outline=args.do_generate_outline,
             do_generate_article=args.do_generate_article,
             do_polish_article=args.do_polish_article,
             remove_duplicate=args.remove_duplicate,
+            original_topic=original_topic,  # 传入原始主题（可能是中文）
         )
         runner.post_run()
         runner.summary()
@@ -186,9 +245,8 @@ if __name__ == "__main__":
         "--max-thread-num",
         type=int,
         default=3,
-        help="Maximum number of threads to use. The information seeking part and the article generation"
-        "part can speed up by using multiple threads. Consider reducing it if keep getting "
-        '"Exceed rate limit" error when calling LM API.',
+        help="最大线程数。信息搜索部分和文章生成部分可以通过使用多个线程来加速。如果调用LM API时持续遇到"
+        '"超出速率限制"错误，请考虑减少线程数。',
     )
     parser.add_argument(
         "--retriever",
