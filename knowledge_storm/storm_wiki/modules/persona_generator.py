@@ -1,48 +1,59 @@
 import logging
 import re
 from typing import Union, List
+from urllib.parse import urlparse, unquote
 
 import dspy
-import requests
-from bs4 import BeautifulSoup
+import wikipedia
 
 
 def get_wiki_page_title_and_toc(url):
-    """Get the main title and table of contents from an url of a Wikipedia page."""
+    """Get the main title and table of contents from a url of a Wikipedia page using the official library."""
+    title = None  # Initialize title to ensure it's available for logging
+    try:
+        parsed_url = urlparse(url)
+        # Extract language from the hostname (e.g., 'en' from 'en.wikipedia.org')
+        lang = parsed_url.hostname.split('.')[0]
+        # Extract title from the path, decode URL encoding, and replace underscores
+        title = unquote(parsed_url.path.split('/')[-1]).replace('_', ' ')
 
-    response = requests.get(url)
-    soup = BeautifulSoup(response.content, "html.parser")
+        wikipedia.set_lang(lang)
+        # Enable auto_suggest to handle redirects and close matches adaptively.
+        page = wikipedia.page(title, auto_suggest=True, redirect=True)
 
-    # Get the main title from the first h1 tag
-    main_title = soup.find("h1").text.replace("[edit]", "").strip().replace("\xa0", " ")
+        # The main title is simply the page's title
+        main_title = page.title
 
-    toc = ""
-    levels = []
-    excluded_sections = {
-        "Contents",
-        "See also",
-        "Notes",
-        "References",
-        "External links",
-    }
+        # The ToC can be constructed from the sections attribute
+        # We manually add indentation to represent structure
+        toc_lines = []
+        for section_title in page.sections:
+            toc_lines.append(f"  {section_title}") # Simulating a flat ToC structure for now
 
-    # Start processing from h2 to exclude the main title from TOC
-    for header in soup.find_all(["h2", "h3", "h4", "h5", "h6"]):
-        level = int(
-            header.name[1]
-        )  # Extract the numeric part of the header tag (e.g., '2' from 'h2')
-        section_title = header.text.replace("[edit]", "").strip().replace("\xa0", " ")
-        if section_title in excluded_sections:
-            continue
+        toc = "\n".join(toc_lines)
+        logging.info(f"Successfully fetched TOC for page '{main_title}' from URL {url}.")
+        return main_title, toc.strip()
 
-        while levels and level <= levels[-1]:
-            levels.pop()
-        levels.append(level)
-
-        indentation = "  " * (len(levels) - 1)
-        toc += f"{indentation}{section_title}\n"
-
-    return main_title, toc.strip()
+    except wikipedia.exceptions.PageError:
+        logging.warning(f"Wikipedia page not found for title '{title}' from URL {url}. Skipping.")
+        return None, None
+    except wikipedia.exceptions.DisambiguationError as e:
+        logging.warning(f"Disambiguation page found for URL {url}. Using first option: {e.options[0]}.")
+        # Retry with the first option from the disambiguation page
+        try:
+            # Pass the suggested option directly to the page function
+            page = wikipedia.page(e.options[0], auto_suggest=False, redirect=True)
+            main_title = page.title
+            toc_lines = [f"  {section_title}" for section_title in page.sections]
+            toc = "\n".join(toc_lines)
+            logging.info(f"Successfully fetched disambiguated page '{main_title}' from URL {url}.")
+            return main_title, toc.strip()
+        except Exception as inner_e:
+            logging.error(f"Failed to fetch disambiguated page for {url}: {inner_e}")
+            return None, None
+    except Exception as e:
+        logging.error(f"An unexpected error occurred while fetching from Wikipedia for URL {url}: {e}")
+        return None, None
 
 
 class FindRelatedTopic(dspy.Signature):
@@ -86,7 +97,8 @@ class CreateWriterWithPersona(dspy.Module):
             for url in urls:
                 try:
                     title, toc = get_wiki_page_title_and_toc(url)
-                    examples.append(f"Title: {title}\nTable of Contents: {toc}")
+                    if title and toc:
+                        examples.append(f"Title: {title}\nTable of Contents: {toc}")
                 except Exception as e:
                     logging.error(f"Error occurs when processing {url}: {e}")
                     continue

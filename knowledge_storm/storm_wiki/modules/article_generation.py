@@ -58,21 +58,32 @@ class StormArticleGenerationModule(ArticleGenerationModule):
         callback_handler: BaseCallbackHandler = None,
     ) -> StormArticle:
         """
-        Generate article for the topic based on the information table and article outline.
+        根据信息表和文章大纲生成主题文章。
 
-        Args:
-            topic (str): The topic of the article.
-            information_table (StormInformationTable): The information table containing the collected information.
-            article_with_outline (StormArticle): The article with specified outline.
-            callback_handler (BaseCallbackHandler): An optional callback handler that can be used to trigger
-                custom callbacks at various stages of the article generation process. Defaults to None.
+        参数:
+            topic (str): 文章的主题。
+            information_table (StormInformationTable): 包含收集到的信息的信息表。
+            article_with_outline (StormArticle): 带有指定大纲的文章。
+            callback_handler (BaseCallbackHandler): 可选的回调处理器，可用于在文章生成过程的不同阶段触发
+                自定义回调。默认为 None。
         """
         information_table.prepare_table_for_retrieval()
 
         if article_with_outline is None:
             article_with_outline = StormArticle(topic_name=topic)
 
-        sections_to_write = article_with_outline.get_first_level_section_names()
+        # Get all section titles from the outline up to a certain depth (e.g., level 1 and 2).
+        all_headings = article_with_outline.get_outline_as_list(add_hashtags=True)
+        sections_to_write = []
+        for heading in all_headings:
+            if heading.startswith("# "):
+                sections_to_write.append(heading.lstrip("# ").strip())
+            elif heading.startswith("## "):
+                sections_to_write.append(heading.lstrip("## ").strip())
+        
+        # Fallback to first-level if the above logic yields an empty list
+        if not sections_to_write:
+            sections_to_write = article_with_outline.get_first_level_section_names()
 
         section_output_dict_collection = []
         if len(sections_to_write) == 0:
@@ -165,7 +176,7 @@ class WriteSection(dspy.Signature):
     **必须用中文编写所有内容，如果某些英文单词能够更好表达原意，可以直接使用该单词**。
     以下是你的写作格式：
         1. 使用"#" 标题"表示章节标题，"##" 标题"表示子章节标题，"###" 标题"表示子子章节标题，以此类推。
-        2. 在行内使用 [1], [2], ..., [n]（例如，"美国的首都是华盛顿特区。[1][3]"）。你不需要在末尾包含"参考文献"或"来源"部分来列出来源。
+        2. 在行内使用 [1], [2], ..., [n]（例如，"美国的首都是华盛顿特区。[1][3]"）。**你不需要在末尾包含"参考文献"或"来源"部分来列出来源**。
     """
 
     info = dspy.InputField(prefix="收集的信息：\n", format=str)

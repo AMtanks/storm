@@ -12,15 +12,39 @@ def my_articles_page():
     demo_util.clear_other_page_session_state(page_index=2)
 
     with st.sidebar:
-        _, return_button_col = st.columns([2, 5])
-        with return_button_col:
+        # Initialize the session state for version toggling
+        if 'show_polished_version' not in st.session_state:
+            st.session_state.show_polished_version = True
+
+        # Check if both versions of the article exist
+        polished_exists = False
+        raw_exists = False
+        if "page2_selected_my_article" in st.session_state:
+            article_name = st.session_state["page2_selected_my_article"]
+            paths = st.session_state.get("page2_user_articles_file_path_dict", {}).get(article_name, {})
+            polished_exists = "storm_gen_article_polished.txt" in paths
+            raw_exists = "storm_gen_article.txt" in paths
+
+        # Create columns for the buttons
+        button_cols = st.columns([1, 1])
+        
+        with button_cols[1]: # "Select another article" button on the right
             if st.button(
                 "Select another article",
                 disabled="page2_selected_my_article" not in st.session_state,
+                use_container_width=True
             ):
                 if "page2_selected_my_article" in st.session_state:
                     del st.session_state["page2_selected_my_article"]
+                st.session_state.show_polished_version = True # Reset to default when changing articles
                 st.rerun()
+
+        with button_cols[0]: # "Toggle version" button on the left
+            if polished_exists and raw_exists:
+                button_text = "View Raw Version" if st.session_state.show_polished_version else "View Polished Version"
+                if st.button(button_text, use_container_width=True):
+                    st.session_state.show_polished_version = not st.session_state.show_polished_version
+                    st.rerun()
 
     # sync my articles
     if "page2_user_articles_file_path_dict" not in st.session_state:

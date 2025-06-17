@@ -176,41 +176,45 @@ class DemoFileIOHelper:
             return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     @staticmethod
-    def assemble_article_data(article_file_path_dict):
+    def assemble_article_data(article_file_path_dict, show_polished=True):
         """
         Constructs a dictionary containing the content and metadata of an article
         based on the available files in the article's directory. This includes the
         main article text, citations from a JSON file, and a conversation log if
-        available. The function prioritizes a polished version of the article if
-        both a raw and polished version exist.
+        available. The function can prioritize a polished or raw version of the article.
 
         Args:
-            article_file_paths (dict): A dictionary where keys are file names relevant
-                                    to the article (e.g., the article text, citations
-                                    in JSON format, conversation logs) and values
-                                    are their corresponding file paths.
+            article_file_path_dict (dict): A dictionary where keys are file names relevant
+                                    to the article and values are their paths.
+            show_polished (bool): If True, prioritize the polished version. 
+                                  If False, prioritize the raw version.
 
         Returns:
             dict or None: A dictionary containing the parsed content of the article,
-                        citations, and conversation log if available. Returns None
-                        if neither the raw nor polished article text exists in the
-                        provided file paths.
+                        citations, and conversation log. Returns None if the required
+                        article text does not exist.
         """
-        if (
-            "storm_gen_article.txt" in article_file_path_dict
-            or "storm_gen_article_polished.txt" in article_file_path_dict
-        ):
-            full_article_name = (
-                "storm_gen_article_polished.txt"
-                if "storm_gen_article_polished.txt" in article_file_path_dict
-                else "storm_gen_article.txt"
-            )
+        article_to_load = None
+        polished_exists = "storm_gen_article_polished.txt" in article_file_path_dict
+        raw_exists = "storm_gen_article.txt" in article_file_path_dict
+
+        if show_polished and polished_exists:
+            article_to_load = "storm_gen_article_polished.txt"
+        elif not show_polished and raw_exists:
+            article_to_load = "storm_gen_article.txt"
+        elif polished_exists: # Fallback
+            article_to_load = "storm_gen_article_polished.txt"
+        elif raw_exists: # Fallback
+            article_to_load = "storm_gen_article.txt"
+
+        if article_to_load:
             article_data = {
                 "article": DemoTextProcessingHelper.parse(
                     DemoFileIOHelper.read_txt_file(
-                        article_file_path_dict[full_article_name]
+                        article_file_path_dict[article_to_load]
                     )
-                )
+                ),
+                "version": "polished" if "polished" in article_to_load else "raw"
             }
             if "url_to_info.json" in article_file_path_dict:
                 article_data["citations"] = _construct_citation_dict_from_search_result(
@@ -537,8 +541,9 @@ def _display_persona_conversations(conversation_log):
 def _display_main_article(
     selected_article_file_path_dict, show_reference=True, show_conversation=True
 ):
+    show_polished = st.session_state.get('show_polished_version', True)
     article_data = DemoFileIOHelper.assemble_article_data(
-        selected_article_file_path_dict
+        selected_article_file_path_dict, show_polished=show_polished
     )
 
     _, main_content_col, _ = st.columns([1.8, 6, 2.2])
