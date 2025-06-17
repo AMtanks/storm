@@ -1,4 +1,5 @@
 @echo off
+
 echo Starting STORM Wiki SiliconFlow Demo...
 
 if "%1"=="debug" (

@@ -149,7 +149,7 @@ class ConvToSection(dspy.Module):
             info += f"[{idx + 1}]\n" + "\n".join(storm_info.snippets)
             info += "\n\n"
 
-        info = ArticleTextProcessing.limit_word_count_preserve_newline(info, 1500)
+        info = ArticleTextProcessing.limit_word_count_preserve_newline(info, 4096)
 
         with dspy.settings.context(lm=self.engine):
             section = ArticleTextProcessing.clean_up_section(
@@ -160,7 +160,8 @@ class ConvToSection(dspy.Module):
 
 
 class WriteSection(dspy.Signature):
-    """基于收集的信息编写维基百科章节。
+    """
+    基于收集的信息编写维基百科章节。
     **必须用中文编写所有内容，如果某些英文单词能够更好表达原意，可以直接使用该单词**。
     以下是你的写作格式：
         1. 使用"#" 标题"表示章节标题，"##" 标题"表示子章节标题，"###" 标题"表示子子章节标题，以此类推。

@@ -59,15 +59,15 @@ def handle_not_started():
                 if st.session_state["retriever"] == "duckduckgo":
                     st.write("#### DuckDuckGo Specific Settings")
                     st.session_state["request_delay"] = st.slider(
-                        "Request Delay (seconds)", min_value=0.1, max_value=5.0, value=1.0, step=0.1
+                        "Request Delay (seconds)", min_value=0.1, max_value=5.0, value=3.0, step=0.1
                     )
                     st.session_state["max_retries"] = st.slider(
                         "Max Retries", min_value=1, max_value=10, value=5, step=1
                     )
                     st.session_state["max_delay"] = st.slider(
-                        "Max Delay (seconds)", min_value=1.0, max_value=10.0, value=6.0, step=0.5
+                        "Max Delay (seconds)", min_value=1.0, max_value=15.0, value=8.0, step=0.5
                     )
-                    st.session_state["use_multiple_backends"] = st.checkbox("Use Multiple Backends", value=True)
+                    st.session_state["use_multiple_backends"] = st.checkbox("Use Multiple Backends", value=False)
                     st.session_state["exponential_backoff"] = st.checkbox("Use Exponential Backoff", value=True)
                     st.session_state["webpage_helper_max_threads"] = st.slider(
                         "Webpage Helper Max Threads", min_value=1, max_value=5, value=1, step=1

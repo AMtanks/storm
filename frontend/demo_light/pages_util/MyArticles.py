@@ -81,9 +81,20 @@ def my_articles_page():
 
     if "page2_selected_my_article" not in st.session_state:
         # get article names
-        article_names = sorted(
-            list(st.session_state["page2_user_articles_file_path_dict"].keys())
-        )
+        local_dir = os.path.join(demo_util.get_demo_dir(), "DEMO_WORKING_DIR")
+        article_folders = list(st.session_state["page2_user_articles_file_path_dict"].keys())
+        
+        # Sort folders by modification time (newest first)
+        try:
+            article_names = sorted(
+                article_folders,
+                key=lambda name: os.path.getmtime(os.path.join(local_dir, name)),
+                reverse=True
+            )
+        except FileNotFoundError:
+            # Handle cases where a folder was deleted but session_state is not updated yet
+            st.rerun()
+
         # display article cards
         my_article_columns = st.columns(3)
         if len(st.session_state["page2_user_articles_file_path_dict"]) > 0:

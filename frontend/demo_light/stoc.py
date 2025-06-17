@@ -76,12 +76,12 @@ class stoc:
         custom_css = """
         <style>
             /* Use more specific selectors to override Streamlit's default styles */
-            [data-testid="stHeading"] h1, div[data-testid="stMarkdown"] h1 { font-family: 'Source Han Sans CN', sans-serif; font-size: 22px; color: #f63366; }
-            [data-testid="stHeading"] h2, div[data-testid="stMarkdown"] h2 { font-family: 'Source Han Sans CN', sans-serif; font-size: 20px; color: #f63366; }
-            [data-testid="stHeading"] h3, div[data-testid="stMarkdown"] h3 { font-family: 'Source Han Sans CN', sans-serif; font-size: 19px; color: #f63366; }
+            [data-testid="stHeading"] h1, div[data-testid="stMarkdown"] h1 { font-family: 'Source Han Sans CN', sans-serif; font-size: 24px; color: #f63366; }
+            [data-testid="stHeading"] h2, div[data-testid="stMarkdown"] h2 { font-family: 'Source Han Sans CN', sans-serif; font-size: 22px; color: #f63366; }
+            [data-testid="stHeading"] h3, div[data-testid="stMarkdown"] h3 { font-family: 'Source Han Sans CN', sans-serif; font-size: 20px; color: #f63366; }
             
             /* The following are for completeness, though h4/h5 are not used by the custom renderer yet */
-            [data-testid="stHeading"] h4, div[data-testid="stMarkdown"] h4 { font-family: 'Source Han Sans CN', sans-serif; font-size: 18px; color: #f63366; }
+            [data-testid="stHeading"] h4, div[data-testid="stMarkdown"] h4 { font-family: 'Source Han Sans CN', sans-serif; font-size: 19px; color: #f63366; }
             [data-testid="stHeading"] h5, div[data-testid="stMarkdown"] h5 { font-family: 'Source Han Sans CN', sans-serif; font-size: 18px; color: #f63366; }
 
             /* Adjust the font size for normal text within markdown */

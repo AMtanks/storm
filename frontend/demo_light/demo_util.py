@@ -605,7 +605,7 @@ def set_storm_runner():
     }
     
     # 使用SiliconFlowModel替代OpenAIModel
-    model_name = "Qwen/Qwen2.5-72B-Instruct"
+    model_name = "Qwen/Qwen2.5-32B-Instruct"
     
     conv_simulator_lm = SiliconFlowModel(
         model=model_name, max_tokens=500, **siliconflow_kwargs
@@ -614,7 +614,7 @@ def set_storm_runner():
         model=model_name, max_tokens=500, **siliconflow_kwargs
     )
     outline_gen_lm = SiliconFlowModel(model=model_name, max_tokens=400, **siliconflow_kwargs)
-    article_gen_lm = SiliconFlowModel(model=model_name, max_tokens=1024, **siliconflow_kwargs)
+    article_gen_lm = SiliconFlowModel(model=model_name, max_tokens=8192, **siliconflow_kwargs)
     article_polish_lm = SiliconFlowModel(
         model=model_name, max_tokens=8192, **siliconflow_kwargs
     )
@@ -679,11 +679,11 @@ def set_storm_runner():
             k=engine_args.search_top_k, 
             safe_search="On", 
             region="us-en",
-            request_delay=st.session_state.get("request_delay", 1.0),
+            request_delay=st.session_state.get("request_delay", 2.0),
             max_retries=st.session_state.get("max_retries", 10),
-            use_multiple_backends=st.session_state.get("use_multiple_backends", True),
+            use_multiple_backends=st.session_state.get("use_multiple_backends", False),
             exponential_backoff=st.session_state.get("exponential_backoff", True),
-            max_delay=st.session_state.get("max_delay", 5.0),
+            max_delay=st.session_state.get("max_delay", 8.0),
             webpage_helper_max_threads=st.session_state.get("webpage_helper_max_threads", 1)
         )
 
