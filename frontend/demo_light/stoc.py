@@ -14,23 +14,40 @@ a.toc {
 </style>"""
 
 
+def slugify(s: str) -> str:
+    """
+    Generate a URL-friendly slug from a string.
+    Handles non-ASCII characters by transliterating them.
+    e.g., "你好 世界" -> "ni-hao-shi-jie"
+    """
+    # Transliterate Unicode characters to ASCII
+    s = unidecode.unidecode(s)
+    # Convert to lowercase
+    s = s.lower()
+    # Replace non-alphanumeric characters with a hyphen
+    s = re.sub(r'[^a-z0-9]+', '-', s)
+    # Remove leading/trailing hyphens
+    s = s.strip('-')
+    return s
+
+
 class stoc:
     def __init__(self):
         self.toc_items = list()
 
     def h1(self, text: str, write: bool = True):
         if write:
-            st.write(f"# {text}")
+            st.title(text, anchor=slugify(text))
         self.toc_items.append(("h1", text))
 
     def h2(self, text: str, write: bool = True):
         if write:
-            st.write(f"## {text}")
+            st.header(text, anchor=slugify(text))
         self.toc_items.append(("h2", text))
 
     def h3(self, text: str, write: bool = True):
         if write:
-            st.write(f"### {text}")
+            st.subheader(text, anchor=slugify(text))
         self.toc_items.append(("h3", text))
 
     def toc(self, expander):
@@ -46,94 +63,52 @@ class stoc:
                     markdown_toc += (
                         " " * 2 * h
                         + "- "
-                        + f'<a href="#{normalize(title)}" class="toc"> {title}</a> \n'
+                        + f'<a href="#{slugify(title)}" class="toc"> {title}</a> \n'
                     )
                 # st.sidebar.write(markdown_toc, unsafe_allow_html=True)
                 st.write(markdown_toc, unsafe_allow_html=True)
 
     @classmethod
-    def get_toc(cls, markdown_text: str, topic=""):
-        def increase_heading_depth_and_add_top_heading(markdown_text, new_top_heading):
-            lines = markdown_text.splitlines()
-            # Increase the depth of each heading by adding an extra '#'
-            increased_depth_lines = [
-                "#" + line if line.startswith("#") else line for line in lines
-            ]
-            # Add the new top-level heading at the beginning
-            increased_depth_lines.insert(0, f"# {new_top_heading}")
-            # Re-join the modified lines back into a single string
-            modified_text = "\n".join(increased_depth_lines)
-            return modified_text
-
-        if topic:
-            markdown_text = increase_heading_depth_and_add_top_heading(
-                markdown_text, topic
-            )
-        toc = []
-        for line in markdown_text.splitlines():
-            if line.startswith("#"):
-                # Remove the '#' characters and strip leading/trailing spaces
-                heading_text = line.lstrip("#").strip()
-                # Create slug (lowercase, spaces to hyphens, remove non-alphanumeric characters)
-                slug = (
-                    re.sub(r"[^a-zA-Z0-9\s-]", "", heading_text)
-                    .lower()
-                    .replace(" ", "-")
-                )
-                # Determine heading level for indentation
-                level = line.count("#") - 1
-                # Add to the table of contents
-                toc.append("  " * level + f"- [{heading_text}](#{slug})")
-        return "\n".join(toc)
-
-    @classmethod
     def from_markdown(cls, text: str, expander=None):
         self = cls()
-        for line in text.splitlines():
-            if line.startswith("###"):
-                self.h3(line[3:], write=False)
-            elif line.startswith("##"):
-                self.h2(line[2:], write=False)
-            elif line.startswith("#"):
-                self.h1(line[1:], write=False)
         # customize markdown font size
+        # Generalize selectors to apply to st.title/header/subheader as well
         custom_css = """
         <style>
-            /* Target Streamlit's markdown container for better specificity */
-            div[data-testid="stMarkdown"] h1 { font-family: 'Source Han Sans CN', sans-serif; font-size: 22px; color: #f63366; }
-            div[data-testid="stMarkdown"] h2 { font-family: 'Source Han Sans CN', sans-serif; font-size: 20px; color: #f63366; }
-            div[data-testid="stMarkdown"] h3 { font-family: 'Source Han Sans CN', sans-serif; font-size: 19px; color: #f63366; }
-            div[data-testid="stMarkdown"] h4 { font-family: 'Source Han Sans CN', sans-serif; font-size: 18px; color: #f63366; }
-            div[data-testid="stMarkdown"] h5 { font-family: 'Source Han Sans CN', sans-serif; font-size: 18px; color: #f63366; }
-            /* Adjust the font size for normal text */
+            /* Use more specific selectors to override Streamlit's default styles */
+            [data-testid="stHeading"] h1, div[data-testid="stMarkdown"] h1 { font-family: 'Source Han Sans CN', sans-serif; font-size: 22px; color: #f63366; }
+            [data-testid="stHeading"] h2, div[data-testid="stMarkdown"] h2 { font-family: 'Source Han Sans CN', sans-serif; font-size: 20px; color: #f63366; }
+            [data-testid="stHeading"] h3, div[data-testid="stMarkdown"] h3 { font-family: 'Source Han Sans CN', sans-serif; font-size: 19px; color: #f63366; }
+            
+            /* The following are for completeness, though h4/h5 are not used by the custom renderer yet */
+            [data-testid="stHeading"] h4, div[data-testid="stMarkdown"] h4 { font-family: 'Source Han Sans CN', sans-serif; font-size: 18px; color: #f63366; }
+            [data-testid="stHeading"] h5, div[data-testid="stMarkdown"] h5 { font-family: 'Source Han Sans CN', sans-serif; font-size: 18px; color: #f63366; }
+
+            /* Adjust the font size for normal text within markdown */
             div[data-testid="stMarkdown"] p { font-family: 'Source Han Sans CN', sans-serif; font-weight: 200; font-size: 18px; }
         </style>
         """
         st.markdown(custom_css, unsafe_allow_html=True)
 
-        st.markdown(text)
+        non_header_lines = []
+        def render_paragraph():
+            if non_header_lines:
+                st.markdown("\n".join(non_header_lines), unsafe_allow_html=True)
+                non_header_lines.clear()
+
+        for line in text.splitlines():
+            if line.startswith("###"):
+                render_paragraph()
+                self.h3(line[3:].strip(), write=True)
+            elif line.startswith("##"):
+                render_paragraph()
+                self.h2(line[2:].strip(), write=True)
+            elif line.startswith("#"):
+                render_paragraph()
+                self.h1(line[1:].strip(), write=True)
+            else:
+                non_header_lines.append(line)
+        
+        render_paragraph() # Render any remaining content
+
         self.toc(expander=expander)
-
-
-def normalize(s):
-    """
-    Normalize titles as valid HTML ids for anchors
-    >>> normalize("it's a test to spot how Things happ3n héhé")
-    "it-s-a-test-to-spot-how-things-happ3n-h-h"
-    """
-
-    # Replace accents with "-"
-    s_wo_accents = unidecode.unidecode(s)
-    accents = [s for s in s if s not in s_wo_accents]
-    for accent in accents:
-        s = s.replace(accent, "-")
-
-    # Lowercase
-    s = s.lower()
-
-    # Keep only alphanum and remove "-" suffix if existing
-    normalized = (
-        "".join([char if char.isalnum() else "-" for char in s]).strip("-").lower()
-    )
-
-    return normalized

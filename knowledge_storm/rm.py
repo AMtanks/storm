@@ -738,7 +738,7 @@ class DuckDuckGoSearchRM(dspy.Retrieve):
         safe_search: str = "On",
         region: str = "us-en",
         request_delay: float = 5.0,  # 降低默认延迟到5秒
-        max_retries: int = 99,  # 增加最大重试次数到99
+        max_retries: int = 25,  # 增加最大重试次数到99
         use_multiple_backends: bool = True,  # 是否使用多个后端轮换
         exponential_backoff: bool = True,  # 是否使用指数退避
         max_delay: float = 8.0,  # 设置最大延迟时间为8秒
