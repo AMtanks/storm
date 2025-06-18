@@ -442,26 +442,3 @@ class STORMWikiRunner(Engine):
                 draft_article=draft_article, remove_duplicate=remove_duplicate
             )
 
-    # def summary(self):
-    #     """
-    #     输出执行摘要信息，使用中文而非英文
-    #     """
-    #     print("***** 执行时间统计 *****")
-    #     for k, v in self.time.items():
-    #         print(f"{k}: {v:.4f} 秒")
-
-    #     print("\n***** 语言模型的令牌使用情况 *****")
-    #     for k, v in self.lm_cost.items():
-    #         print(f"阶段: {k}")
-    #         for model_name, tokens in v.items():
-    #             print(f"    模型: {model_name}")
-    #             print(f"    提示词令牌数: {tokens.get('prompt_tokens', 0)}")
-    #             print(f"    生成令牌数: {tokens.get('completion_tokens', 0)}")
-    #             print(f"    总令牌数: {tokens.get('prompt_tokens', 0) + tokens.get('completion_tokens', 0)}")
-
-    #     print("\n***** 检索模型的查询统计 *****")
-    #     for k, v in self.rm_cost.items():
-    #         print(f"阶段: {k}")
-    #         for engine, count in v.items():
-    #             print(f"    搜索引擎: {engine}")
-    #             print(f"    查询次数: {count}")

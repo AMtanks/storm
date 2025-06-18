@@ -114,8 +114,8 @@ def main(args):
     question_asker_lm = SiliconFlowModel(
         model=model_name, max_tokens=500, **siliconflow_kwargs
     )
-    outline_gen_lm = SiliconFlowModel(model=model_name, max_tokens=400, **siliconflow_kwargs)
-    article_gen_lm = SiliconFlowModel(model=model_name, max_tokens=1024, **siliconflow_kwargs)
+    outline_gen_lm = SiliconFlowModel(model=model_name, max_tokens=800, **siliconflow_kwargs)
+    article_gen_lm = SiliconFlowModel(model=model_name, max_tokens=2048, **siliconflow_kwargs)
     article_polish_lm = SiliconFlowModel(
         model=model_name, max_tokens=8192, **siliconflow_kwargs
     )

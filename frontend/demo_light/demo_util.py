@@ -546,6 +546,11 @@ def _display_main_article(
         selected_article_file_path_dict, show_polished=show_polished
     )
 
+    if article_data is None:
+        st.error("Article data could not be loaded. The files might be missing or corrupted.")
+        st.info("Please select another article.")
+        return # Stop further execution
+
     _, main_content_col, _ = st.columns([1.8, 6, 2.2])
 
     with main_content_col:
@@ -603,7 +608,7 @@ def set_storm_runner():
     
     # 设置SiliconFlow API参数
     siliconflow_kwargs = {
-        "api_key": st.secrets.get("SILICONFLOW_API_KEY", "sk-lpmnkrmjecjryeruvsdrovodolqnjhsiohbjwgbinqllkomy"),
+        "api_key": st.secrets.get("SILICONFLOW_API_KEY"),
         "api_base": "https://api.siliconflow.cn/v1",
         "temperature": st.session_state.get("temperature", 1.0),
         "top_p": st.session_state.get("top_p", 0.9),
@@ -613,13 +618,13 @@ def set_storm_runner():
     model_name = "Qwen/Qwen2.5-32B-Instruct"
     
     conv_simulator_lm = SiliconFlowModel(
-        model=model_name, max_tokens=500, **siliconflow_kwargs
+        model=model_name, max_tokens=600, **siliconflow_kwargs
     )
     question_asker_lm = SiliconFlowModel(
-        model=model_name, max_tokens=500, **siliconflow_kwargs
+        model=model_name, max_tokens=600, **siliconflow_kwargs
     )
-    outline_gen_lm = SiliconFlowModel(model=model_name, max_tokens=400, **siliconflow_kwargs)
-    article_gen_lm = SiliconFlowModel(model=model_name, max_tokens=8192, **siliconflow_kwargs)
+    outline_gen_lm = SiliconFlowModel(model=model_name, max_tokens=800, **siliconflow_kwargs)
+    article_gen_lm = SiliconFlowModel(model=model_name, max_tokens=4096, **siliconflow_kwargs)
     article_polish_lm = SiliconFlowModel(
         model=model_name, max_tokens=8192, **siliconflow_kwargs
     )
@@ -650,33 +655,29 @@ def set_storm_runner():
     
     if retriever == "bing":
         rm = BingSearch(
-            bing_search_api=st.secrets.get("BING_SEARCH_API_KEY", ""),
+            bing_search_api=st.secrets.get("BING_SEARCH_API_KEY"),
             k=engine_args.search_top_k,
         )
     elif retriever == "you":
-        rm = YouRM(ydc_api_key=st.secrets.get("YDC_API_KEY", ""), k=engine_args.search_top_k)
+        rm = YouRM(ydc_api_key=st.secrets.get("YDC_API_KEY"), k=engine_args.search_top_k)
     elif retriever == "brave":
         rm = BraveRM(
-            brave_search_api_key=st.secrets.get("BRAVE_API_KEY", ""),
+            brave_search_api_key=st.secrets.get("BRAVE_API_KEY"),
             k=engine_args.search_top_k,
         )
     elif retriever == "serper":
         rm = SerperRM(
-            serper_search_api_key=st.secrets.get("SERPER_API_KEY", ""),
+            serper_search_api_key=st.secrets.get("SERPER_API_KEY"),
             query_params={"autocorrect": True, "num": 10, "page": 1},
         )
     elif retriever == "tavily":
-        proxy = st.secrets.get("HTTP_PROXY", None)
         rm = TavilySearchRM(
-            tavily_search_api_key=st.secrets.get("TAVILY_API_KEY", ""),
+            tavily_search_api_key=st.secrets.get("TAVILY_API_KEY"),
             k=engine_args.search_top_k,
-            include_raw_content=True,
-            proxy=proxy,
-            exclude_domains=["wikipedia.org", "en.wikipedia.org"],
         )
     elif retriever == "searxng":
         rm = SearXNG(
-            searxng_api_key=st.secrets.get("SEARXNG_API_KEY", ""), 
+            searxng_api_key=st.secrets.get("SEARXNG_API_KEY"), 
             k=engine_args.search_top_k
         )
     else:  # Default to duckduckgo

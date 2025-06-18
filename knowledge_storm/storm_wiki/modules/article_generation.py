@@ -72,18 +72,7 @@ class StormArticleGenerationModule(ArticleGenerationModule):
         if article_with_outline is None:
             article_with_outline = StormArticle(topic_name=topic)
 
-        # Get all section titles from the outline up to a certain depth (e.g., level 1 and 2).
-        all_headings = article_with_outline.get_outline_as_list(add_hashtags=True)
-        sections_to_write = []
-        for heading in all_headings:
-            if heading.startswith("# "):
-                sections_to_write.append(heading.lstrip("# ").strip())
-            elif heading.startswith("## "):
-                sections_to_write.append(heading.lstrip("## ").strip())
-        
-        # Fallback to first-level if the above logic yields an empty list
-        if not sections_to_write:
-            sections_to_write = article_with_outline.get_first_level_section_names()
+        sections_to_write = article_with_outline.get_first_level_section_names()
 
         section_output_dict_collection = []
         if len(sections_to_write) == 0:
@@ -173,7 +162,7 @@ class ConvToSection(dspy.Module):
 class WriteSection(dspy.Signature):
     """
     基于收集的信息编写维基百科章节。
-    **必须用中文编写所有内容，如果某些英文单词能够更好表达原意，可以直接使用该单词**。
+    **必须始终使用中文编写，如文章中有英文片段，则翻译成中文，如遇专业术语或英文概念，可保留英文名词**。
     以下是你的写作格式：
         1. 使用"#" 标题"表示章节标题，"##" 标题"表示子章节标题，"###" 标题"表示子子章节标题，以此类推。
         2. 在行内使用 [1], [2], ..., [n]（例如，"美国的首都是华盛顿特区。[1][3]"）。**你不需要在末尾包含"参考文献"或"来源"部分来列出来源**。
