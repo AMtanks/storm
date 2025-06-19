@@ -35,6 +35,76 @@ from knowledge_storm.rm import (
 )
 
 
+class LLMWrapper:
+    def __init__(self, model, model_name: str):
+        self._model = model
+        self._model_name = model_name
+
+    def __call__(self, *args, **kwargs):
+        # Reconstruct the approximate request payload for logging
+        # Start with the model's default kwargs
+        final_kwargs = self.kwargs.copy()
+        # Override with any kwargs passed directly in the call
+        final_kwargs.update(kwargs)
+
+        prompt = args[0] if args else ""
+        
+        # Build the payload. Note: This is an approximation of the actual payload.
+        payload = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": final_kwargs.get("max_tokens"),
+            "temperature": final_kwargs.get("temperature"),
+            "top_p": final_kwargs.get("top_p"),
+            "top_k": final_kwargs.get("top_k"),
+            "repetition_penalty": final_kwargs.get("repetition_penalty"),
+            "stop": final_kwargs.get("stop"),
+            "n": final_kwargs.get("n", 1),
+        }
+        # Filter out keys with None values to keep the log clean
+        payload = {k: v for k, v in payload.items() if v is not None}
+
+        print(f"\n\n--- Request to {self._model_name} (Approximated Payload) ---")
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        print(f"--- End of Request to {self._model_name} ---\n")
+
+        response = self._model(*args, **kwargs)
+
+        print(f"\n\n--- Full Raw Response from {self._model_name} ---")
+        
+        if hasattr(self._model, 'history') and self._model.history:
+            last_interaction = self._model.history[-1]
+            raw_response_obj = last_interaction.get('response')
+            
+            if raw_response_obj:
+                try:
+                    # For Pydantic models (like from openai v1+), dump to dict then to JSON string
+                    response_dict = raw_response_obj.model_dump(mode='json')
+                    print(json.dumps(response_dict, indent=2, ensure_ascii=False))
+                except (AttributeError, TypeError):
+                    # Fallback for dictionaries or other objects
+                    try:
+                        print(json.dumps(raw_response_obj, indent=2, ensure_ascii=False))
+                    except TypeError as e:
+                        print(f"Could not serialize the response object: {e}")
+            else:
+                print("Could not find raw response object in model history.")
+                print("Printing processed response instead:")
+                print(response)
+        else:
+            print("Model does not have a 'history' attribute or history is empty.")
+            print("Printing processed response instead:")
+            print(response)
+
+        print(f"--- End of Response from {self._model_name} ---\n")
+        
+        return response
+
+    def __getattr__(self, name):
+        """Delegate attribute access to the wrapped model."""
+        return getattr(self._model, name)
+
+
 class DemoFileIOHelper:
     @staticmethod
     def read_structure_to_dict(articles_root_path):
@@ -629,6 +699,10 @@ def set_storm_runner():
         model=model_name, max_tokens=8192, **siliconflow_kwargs
     )
     
+    # Wrap article generation and polishing models for logging
+    article_gen_lm = LLMWrapper(article_gen_lm, "article_gen_lm")
+    article_polish_lm = LLMWrapper(article_polish_lm, "article_polish_lm")
+
     # 创建一个额外的模型实例用于翻译（如果需要的话）
     translation_lm = SiliconFlowModel(
         model=model_name, max_tokens=100, **siliconflow_kwargs

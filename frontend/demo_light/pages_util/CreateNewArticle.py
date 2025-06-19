@@ -31,7 +31,7 @@ def handle_not_started():
                 st.session_state["do_generate_outline"] = st.checkbox("Generate Outline", value=True)
                 st.session_state["do_generate_article"] = st.checkbox("Generate Article", value=True)
                 st.session_state["do_polish_article"] = st.checkbox("Polish Article", value=True)
-                st.session_state["remove_duplicate"] = st.checkbox("Remove Duplicate Content", value=False)
+                st.session_state["remove_duplicate"] = st.checkbox("Remove Duplicate Content", value=True)
             
             with col2:
                 st.write("#### Search Engine")

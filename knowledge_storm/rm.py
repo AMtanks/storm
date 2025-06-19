@@ -991,7 +991,6 @@ class DuckDuckGoSearchRM(dspy.Retrieve):
             except Exception as e:
                 logging.error(f"搜索查询 '{query}' 时出错: {str(e)}")
 
-        logging.info(f"总共收集到 {len(collected_results)} 个结果")
         return collected_results
 
 
